@@ -1,0 +1,33 @@
+name: 'Build Kotlin, Run Lint and Test'
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: 'Build with Gradle'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: write
+      contents: write
+    env:
+      ORG_GRADLE_PROJECT_githubUser: x-access-token
+      ORG_GRADLE_PROJECT_githubPassword: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nais/login@v0
+        with:
+          team: 'teamdigisos'
+      - name: Run lint
+        run: ./gradlew spotlessCheck
+        shell: bash
+      - name: Build kotlin, and run tests
+        uses: navikt/sosialhjelp-ci/actions/build-kotlin@v17
+        with:
+          java-version: '21'
+          lint: 'false'

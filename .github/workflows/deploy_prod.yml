@@ -1,0 +1,16 @@
+name: 'Deploy to Production'
+run-name: Deploy '${{ github.ref_name }}' to production
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-to-prod:
+    name: 'Build for Deploy and Deploy to Prod'
+    permissions:
+      id-token: write
+      contents: write
+    uses: navikt/sosialhjelp-ci/.github/workflows/deploy_app.yml@v17
+    with:
+      cluster-name: prod-gcp
+      resource-name: prod-gcp
+    secrets: inherit

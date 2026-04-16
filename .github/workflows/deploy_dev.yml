@@ -1,0 +1,24 @@
+name: 'Deploy to Development'
+run-name: Deploy '${{ github.ref_name }}' to '${{ github.event.inputs.config-file-name }}'
+on:
+  workflow_dispatch:
+    inputs:
+      config-file-name:
+        description: 'Config-fil som skal deployes'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - 'dev'
+
+jobs:
+  deploy-to-dev:
+    name: 'Build for Deploy and Deploy to Dev'
+    permissions:
+      id-token: write
+      contents: write
+    uses: navikt/sosialhjelp-ci/.github/workflows/deploy_app.yml@v17
+    with:
+      cluster-name: dev-gcp
+      resource-name: ${{ inputs.config-file-name }}
+    secrets: inherit

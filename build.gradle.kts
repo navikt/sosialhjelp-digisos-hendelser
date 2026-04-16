@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.bundles.coroutines)
     implementation(libs.bundles.jackson)
     implementation(libs.ktor.serialization.jackson)
+    implementation(libs.lettuce.core)
     implementation(libs.micrometer.registry.prometheus)
     implementation(libs.sosialhjelp.filformat)
     implementation(libs.sosialhjelp.common.api)

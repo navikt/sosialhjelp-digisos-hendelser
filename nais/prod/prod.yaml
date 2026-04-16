@@ -48,7 +48,8 @@ spec:
           namespace: org
     inbound:
       rules:
-        - application: sosialhjelp-innsyn
+        - application: sosialhjelp-innsyn-api
+        - application: sosialhjelp-innsyn-api
   resources:
     limits:
       memory: 2Gi

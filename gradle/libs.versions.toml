@@ -1,11 +1,12 @@
 [versions]
 kotlin = "2.3.20"
-ktor = "3.1.3"
+ktor = "3.2.0"
 coroutines = "1.10.1"
 serialization = "1.8.1"
 logback = "1.5.18"
 logstash = "8.1"
 jackson = "2.19.0"
+lettuce = "6.4.0.RELEASE"
 micrometer = "1.14.5"
 sosialhjelp-common = "1.20260204.1322-0cda8ef"
 filformat = "1.2026.02.04-07.27-7f2f3515bd59"
@@ -18,8 +19,8 @@ ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
 ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
 ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
 ktor-server-call-logging = { module = "io.ktor:ktor-server-call-logging", version.ref = "ktor" }
-ktor-server-call-id = { module = "io.ktor:ktor-server-call-id", version.ref = "ktor" }
 ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktor" }
+ktor-server-di = { module = "io.ktor:ktor-server-di", version.ref = "ktor" }
 ktor-server-metrics-micrometer = { module = "io.ktor:ktor-server-metrics-micrometer", version.ref = "ktor" }
 ktor-server-auth = { module = "io.ktor:ktor-server-auth", version.ref = "ktor" }
 ktor-server-auth-jwt = { module = "io.ktor:ktor-server-auth-jwt", version.ref = "ktor" }
@@ -42,6 +43,8 @@ jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
 jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310", version.ref = "jackson" }
 
+lettuce-core = { module = "io.lettuce:lettuce-core", version.ref = "lettuce" }
+
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
 
 sosialhjelp-common-api = { module = "no.nav.sosialhjelp:sosialhjelp-common-api", version.ref = "sosialhjelp-common" }
@@ -56,8 +59,8 @@ ktor-server = [
     "ktor-server-netty",
     "ktor-server-content-negotiation",
     "ktor-server-call-logging",
-    "ktor-server-call-id",
     "ktor-server-status-pages",
+    "ktor-server-di",
     "ktor-server-metrics-micrometer",
     "ktor-server-auth",
     "ktor-server-auth-jwt",

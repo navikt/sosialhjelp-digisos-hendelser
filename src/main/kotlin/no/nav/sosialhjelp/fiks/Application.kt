@@ -10,30 +10,33 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.jackson.jackson
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
 import io.ktor.server.auth.authentication
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.metrics.micrometer.MicrometerMetrics
 import io.ktor.server.netty.Netty
-import io.ktor.server.plugins.callid.CallId
-import io.ktor.server.plugins.callid.callIdMdc
 import io.ktor.server.plugins.calllogging.CallLogging
+import io.ktor.server.plugins.di.dependencies
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import io.micrometer.prometheusmetrics.PrometheusConfig
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import no.nav.sosialhjelp.fiks.app.ClientProperties
 import no.nav.sosialhjelp.fiks.digisosapi.EventServiceFactory
 import no.nav.sosialhjelp.fiks.digisosapi.FiksClient
 import no.nav.sosialhjelp.fiks.digisosapi.FiksService
 import no.nav.sosialhjelp.fiks.navenhet.NorgClientImpl
 import no.nav.sosialhjelp.fiks.routes.soknaderRoutes
+import no.nav.sosialhjelp.fiks.valkey.ValkeyClient
 import no.nav.sosialhjelp.fiks.vedlegg.VedleggService
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
-import java.util.UUID
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 private val log = LoggerFactory.getLogger("no.nav.sosialhjelp.fiks.Application")
@@ -46,45 +49,51 @@ fun main() {
 fun Application.module() {
     val clientProperties = buildClientProperties()
     val httpClient = buildHttpClient()
+    val valkeyClient = ValkeyClient(clientProperties.valkeyHost, clientProperties.valkeyPort)
+    val appMeterRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
 
-    val norgClient = NorgClientImpl(httpClient, clientProperties.norgEndpointUrl)
-    val fiksClient =
-        FiksClient(
-            httpClient = httpClient,
-            baseUrl = clientProperties.fiksDigisosEndpointUrl,
-            integrasjonId = clientProperties.fiksIntegrasjonId,
-            integrasjonPassord = clientProperties.fiksIntegrasjonpassord,
-        )
-    val fiksService = FiksService(fiksClient)
+    dependencies {
+        provide<NorgClientImpl> { NorgClientImpl(httpClient, clientProperties.norgEndpointUrl) }
+        provide<FiksClient> {
+            FiksClient(
+                httpClient = httpClient,
+                baseUrl = clientProperties.fiksDigisosEndpointUrl,
+                integrasjonId = clientProperties.fiksIntegrasjonId,
+                integrasjonPassord = clientProperties.fiksIntegrasjonpassord,
+            )
+        }
+        provide<ValkeyClient> { valkeyClient }
+        provide<FiksService> { FiksService(resolve(), resolve()) }
+        provide<EventServiceFactory> {
+            EventServiceFactory(
+                clientProperties = clientProperties,
+                fiksService = resolve(),
+                vedleggService = NoopVedleggService(),
+                norgClient = resolve(),
+            )
+        }
+    }
 
-    // VedleggService has no Fiks-communication and has no impl here yet
-    val vedleggService = NoopVedleggService()
+    this.monitor.subscribe(ApplicationStopped) {
+        httpClient.close()
+        valkeyClient.close()
+    }
 
-    val eventServiceFactory =
-        EventServiceFactory(
-            clientProperties = clientProperties,
-            fiksService = fiksService,
-            vedleggService = vedleggService,
-            norgClient = norgClient,
-        )
-
-    configureMonitoring()
+    configureMonitoring(appMeterRegistry)
     configureSerialization()
     configureAuth()
     configureStatusPages()
-    configureRouting(fiksService, eventServiceFactory)
+    configureRouting(appMeterRegistry)
 
     log.info("sosialhjelp-fiks-service started")
 }
 
-fun Application.configureMonitoring() {
-    install(CallId) {
-        generate { UUID.randomUUID().toString() }
-        verify { it.isNotEmpty() }
+fun Application.configureMonitoring(meterRegistry: PrometheusMeterRegistry) {
+    install(MicrometerMetrics) {
+        registry = meterRegistry
     }
     install(CallLogging) {
         level = Level.INFO
-        callIdMdc("callId")
     }
 }
 
@@ -136,13 +145,16 @@ fun Application.configureStatusPages() {
     }
 }
 
-fun Application.configureRouting(
-    fiksService: FiksService,
-    eventServiceFactory: EventServiceFactory,
-) {
+fun Application.configureRouting(meterRegistry: PrometheusMeterRegistry) {
+    val fiksService: FiksService by dependencies
+    val eventServiceFactory: EventServiceFactory by dependencies
+
     routing {
         get("/internal/health") {
             call.respondText("OK")
+        }
+        get("/internal/metrics") {
+            call.respondText(meterRegistry.scrape())
         }
         soknaderRoutes(fiksService, eventServiceFactory)
     }
@@ -174,7 +186,7 @@ private fun buildHttpClient(): HttpClient =
         }
     }
 
-/** Placeholder implementation — VedleggService lives in innsyn-api and depends on Fiks upload logic. */
+/** Placeholder — VedleggService lives in innsyn-api and depends on Fiks upload logic. */
 private class NoopVedleggService : VedleggService {
     override suspend fun hentSoknadVedleggMedStatus(
         status: String,

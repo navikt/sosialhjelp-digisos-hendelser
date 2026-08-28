@@ -26,7 +26,8 @@ fun String.toInstant(): Instant =
  */
 fun String.toLocalDate(): LocalDate =
     if (this.length > 10) {
-        ZonedDateTime.parse(this, ISO_DATE_TIME)
+        ZonedDateTime
+            .parse(this, ISO_DATE_TIME)
             .withZoneSameInstant(ZoneId.of("Europe/Oslo"))
             .toLocalDate()
     } else {
@@ -42,5 +43,6 @@ fun <R : Any> R.logger(): Lazy<Logger> = lazy { LoggerFactory.getLogger(unwrapCo
 
 fun <T : Any> unwrapCompanionClass(ofClass: Class<T>): Class<*> =
     ofClass.enclosingClass?.takeIf {
-        ofClass.enclosingClass.kotlin.companionObject?.java == ofClass
+        ofClass.enclosingClass.kotlin.companionObject
+            ?.java == ofClass
     } ?: ofClass

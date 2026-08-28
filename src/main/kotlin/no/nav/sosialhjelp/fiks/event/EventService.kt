@@ -191,4 +191,3 @@ private suspend fun FoldAccumulator.applyHendelse(
         else -> error("Hendelsetype ${hendelse.type.value()} mangler mapping")
     }
 }
-

@@ -32,4 +32,3 @@ internal fun FoldAccumulator.apply(hendelse: JsonDokumentasjonkrav) {
 
     hendelser.add(KravEndret(tidspunkt = tidspunkt, kravReferanse = referanse, kravType = KravType.DOKUMENTASJONKRAV))
 }
-

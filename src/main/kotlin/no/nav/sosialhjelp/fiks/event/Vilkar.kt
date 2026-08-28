@@ -41,4 +41,3 @@ internal fun FoldAccumulator.apply(hendelse: JsonVilkar) {
 
     hendelser.add(KravEndret(tidspunkt = tidspunkt, kravReferanse = referanse, kravType = KravType.VILKAR))
 }
-

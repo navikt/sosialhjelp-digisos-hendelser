@@ -102,4 +102,6 @@ data class OppgaverTrukket(
  * Returns a stable gruppeId string for grouping krav by frist.
  * Preserved from the existing sha256(frist.toString()) pattern both apps share.
  */
-fun gruppeIdForFrist(frist: LocalDate): String = no.nav.sosialhjelp.fiks.utils.sha256(frist.toString())
+fun gruppeIdForFrist(frist: LocalDate): String =
+    no.nav.sosialhjelp.fiks.utils
+        .sha256(frist.toString())

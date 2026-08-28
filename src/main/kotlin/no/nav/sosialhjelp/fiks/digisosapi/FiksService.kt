@@ -38,14 +38,6 @@ class FiksService(
     private val requestLocks = ConcurrentHashMap<String, Mutex>()
 
     /**
-     * Fetches all DigisosSak for a user, plus all their JsonDigisosSoker in one bulk call.
-     *
-     * Returns a map from fiksDigisosId to (DigisosSak, JsonDigisosSoker?).
-     * JsonDigisosSoker may be null if the sak has no innsynsfil or if the bulk fetch failed for that sak.
-     *
-     * Used by the oversikt endpoints — avoids N sequential document fetches.
-     */
-    /**
      * Fetch all søknader with their innsynsfiler for the authenticated citizen.
      * For the saksbehandler path, use [getAllSoknaderForFnrMedInnsynsfiler] instead.
      */
@@ -62,6 +54,14 @@ class FiksService(
         return hentInnsynsfilerBulk(saker, caller)
     }
 
+    /**
+     * Fetches all DigisosSak for a user, plus all their JsonDigisosSoker in one bulk call.
+     *
+     * Returns a list of (DigisosSak, JsonDigisosSoker?) pairs.
+     * JsonDigisosSoker may be null if the sak has no innsynsfil or if the bulk fetch failed for that sak.
+     *
+     * Used by the oversikt endpoints — avoids N sequential document fetches.
+     */
     private suspend fun hentInnsynsfilerBulk(
         saker: List<DigisosSak>,
         caller: Caller,

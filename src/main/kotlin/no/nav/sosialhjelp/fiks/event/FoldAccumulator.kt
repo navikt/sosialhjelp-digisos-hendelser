@@ -8,8 +8,8 @@ import no.nav.sosialhjelp.fiks.domain.Krav
 import no.nav.sosialhjelp.fiks.domain.NavEnhet
 import no.nav.sosialhjelp.fiks.domain.NavKontorTildeling
 import no.nav.sosialhjelp.fiks.domain.Sak
-import no.nav.sosialhjelp.fiks.domain.Soknad
 import no.nav.sosialhjelp.fiks.domain.SaksStatus
+import no.nav.sosialhjelp.fiks.domain.Soknad
 import no.nav.sosialhjelp.fiks.domain.SoknadHendelse
 import no.nav.sosialhjelp.fiks.domain.SoknadsStatus
 import no.nav.sosialhjelp.fiks.domain.Utbetaling

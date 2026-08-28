@@ -16,8 +16,6 @@ class CallerRegistry(
 
     fun isAllowed(clientId: String): Boolean = entries.containsKey(clientId)
 
-    fun allowedBehandlingsnummer(clientId: String): Set<String> = entries[clientId]?.tillatteBehandlingsnummer ?: emptySet()
-
     companion object {
         /**
          * Build from environment config.

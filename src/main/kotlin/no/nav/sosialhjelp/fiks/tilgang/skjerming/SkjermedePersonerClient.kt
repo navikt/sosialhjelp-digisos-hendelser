@@ -12,6 +12,7 @@ import no.nav.sosialhjelp.fiks.app.auth.Caller
 import no.nav.sosialhjelp.fiks.app.auth.Fnr
 import no.nav.sosialhjelp.fiks.app.texas.TexasClient
 import no.nav.sosialhjelp.fiks.utils.logger
+import no.nav.sosialhjelp.fiks.utils.maskerFnr
 
 /**
  * Client for skjermede-personer-pip.
@@ -59,10 +60,10 @@ class SkjermedePersonerClient(
                 "true" -> true
                 else -> {
                     log.error("Uventet respons fra skjermede-personer: '$response' — behandler som skjermet")
-                    throw IllegalStateException("Uventet respons fra skjermede-personer: $response")
+                    error("Uventet respons fra skjermede-personer: $response")
                 }
             }
-        }.onFailure { log.error("Kall til skjermede-personer feilet: ${it.message}") }
+        }.onFailure { log.error("Kall til skjermede-personer feilet: ${it.message?.maskerFnr}") }
             .getOrElse { true } // fail-closed
     }
 }

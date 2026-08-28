@@ -6,6 +6,7 @@ import no.nav.sbl.soknadsosialhjelp.digisos.soker.JsonDigisosSoker
 import no.nav.sosialhjelp.api.fiks.DigisosSak
 import no.nav.sosialhjelp.fiks.app.auth.Caller
 import no.nav.sosialhjelp.fiks.utils.logger
+import no.nav.sosialhjelp.fiks.utils.maskerFnr
 import no.nav.sosialhjelp.fiks.valkey.ValkeyClient
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
@@ -44,12 +45,12 @@ class FiksService(
      *
      * Used by the oversikt endpoints — avoids N sequential document fetches.
      */
-    suspend fun getAllSoknaderMedInnsynsfiler(caller: Caller): List<Pair<DigisosSak, JsonDigisosSoker?>> {
-        val saker =
-            when (caller) {
-                is Caller.Citizen -> getAllSoknader(caller)
-                is Caller.Saksbehandler -> error("Use getAllSoknaderForFnrMedInnsynsfiler for saksbehandler path")
-            }
+    /**
+     * Fetch all søknader with their innsynsfiler for the authenticated citizen.
+     * For the saksbehandler path, use [getAllSoknaderForFnrMedInnsynsfiler] instead.
+     */
+    suspend fun getAllSoknaderMedInnsynsfiler(caller: Caller.Citizen): List<Pair<DigisosSak, JsonDigisosSoker?>> {
+        val saker = getAllSoknader(caller)
         return hentInnsynsfilerBulk(saker, caller)
     }
 
@@ -75,7 +76,7 @@ class FiksService(
         val bulkResult =
             if (bulkFiksClient != null) {
                 runCatching { bulkFiksClient!!.hentDokumenterBulk(saker, caller) }
-                    .onFailure { log.warn("Bulk-henting feilet, faller tilbake til individuell fetching: ${it.message}") }
+                    .onFailure { log.warn("Bulk-henting feilet, faller tilbake til individuell fetching: ${it.message?.maskerFnr}") }
                     .getOrElse { emptyMap() }
             } else {
                 emptyMap()
@@ -111,15 +112,14 @@ class FiksService(
         }
     }
 
-    suspend fun getAllSoknader(caller: Caller): List<DigisosSak> =
-        when (caller) {
-            is Caller.Citizen ->
-                fiksClient
-                    .hentAlleDigisosSaker(caller)
-                    .also { log.info("Hentet ${it.size} DigisosSaker (citizen)") }
-            is Caller.Saksbehandler ->
-                error("Use getAllSoknaderForFnr for saksbehandler path")
-        }
+    /**
+     * Fetch all søknader for the authenticated citizen.
+     * For the saksbehandler path, use [getAllSoknaderForFnr] instead.
+     */
+    suspend fun getAllSoknader(caller: Caller.Citizen): List<DigisosSak> =
+        fiksClient
+            .hentAlleDigisosSaker(caller)
+            .also { log.info("Hentet ${it.size} DigisosSaker (citizen)") }
 
     suspend fun getAllSoknaderForFnr(
         fnr: String,

@@ -7,6 +7,7 @@ import no.nav.sosialhjelp.api.fiks.DokumentInfo
 import no.nav.sosialhjelp.fiks.app.auth.Caller
 import no.nav.sosialhjelp.fiks.digisosapi.FiksService
 import no.nav.sosialhjelp.fiks.utils.logger
+import no.nav.sosialhjelp.fiks.utils.maskerFnr
 import java.time.LocalDateTime
 
 const val VEDLEGG_KREVES_STATUS = "VedleggKreves"
@@ -74,7 +75,7 @@ class FiksVedleggService(
                         )
                     }
                 }
-        }.onFailure { log.error("Henting av vedleggspesifikasjon feilet: ${it.message}") }
+        }.onFailure { log.error("Henting av vedleggspesifikasjon feilet: ${it.message?.maskerFnr}") }
             .getOrElse { emptyList() }
     }
 }

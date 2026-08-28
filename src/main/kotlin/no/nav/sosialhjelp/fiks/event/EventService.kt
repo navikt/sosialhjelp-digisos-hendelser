@@ -22,7 +22,6 @@ import no.nav.sosialhjelp.fiks.domain.SoknadResponse
 import no.nav.sosialhjelp.fiks.domain.SoknadsStatus
 import no.nav.sosialhjelp.fiks.navenhet.NorgClient
 import no.nav.sosialhjelp.fiks.utils.logger
-import no.nav.sosialhjelp.fiks.utils.toInstant
 import no.nav.sosialhjelp.fiks.utils.unixToInstant
 import no.nav.sosialhjelp.fiks.vedlegg.VedleggService
 import java.time.LocalDate
@@ -189,51 +188,7 @@ private suspend fun FoldAccumulator.applyHendelse(
         is JsonVilkar -> apply(hendelse)
         is JsonDokumentasjonkrav -> apply(hendelse)
         is JsonRammevedtak -> { /* Gjør ingenting — rammevedtak vises ikke til bruker */ }
-        else -> throw RuntimeException("Hendelsetype ${hendelse.type.value()} mangler mapping")
+        else -> error("Hendelsetype ${hendelse.type.value()} mangler mapping")
     }
 }
 
-/** Logteknisksperre telemetry — no fnr, safe to log. */
-fun logTekniskSperre(
-    jsonDigisosSoker: JsonDigisosSoker?,
-    utbetalinger: List<no.nav.sosialhjelp.fiks.domain.Utbetaling>,
-    fiksDigisosId: String,
-    kommunenummer: String,
-    log: org.slf4j.Logger,
-) {
-    utbetalinger
-        .filter { it.forfallsDato?.isBefore(LocalDate.now().minusDays(1)) ?: false }
-        .forEach { utbetaling ->
-            val sluttdato = utbetaling.utbetalingsDato ?: utbetaling.stoppetDato ?: LocalDate.now()
-            val forfallsDato = utbetaling.forfallsDato ?: return@forEach
-            val eventListe = mutableListOf<String>()
-            var opprettelsesdato = LocalDate.now()
-            jsonDigisosSoker
-                ?.hendelser
-                ?.filterIsInstance<JsonUtbetaling>()
-                ?.filter { it.utbetalingsreferanse == utbetaling.referanse }
-                ?.forEach { e ->
-                    eventListe.add("{\"tidspunkt\": \"${e.hendelsestidspunkt}\", \"status\": \"${e.status}\"}")
-                    val ld =
-                        runCatching {
-                            ZonedDateTime
-                                .parse(e.hendelsestidspunkt, DateTimeFormatter.ISO_DATE_TIME)
-                                .toLocalDate()
-                        }.getOrElse { LocalDate.now() }
-                    opprettelsesdato = minOf(ld, opprettelsesdato)
-                }
-            val startdato = maxOf(forfallsDato, opprettelsesdato)
-            val overdueDays =
-                java.time.temporal.ChronoUnit.DAYS
-                    .between(startdato, sluttdato)
-            val tilbakevirkende = opprettelsesdato.isAfter(forfallsDato)
-            log.info(
-                "Utbetaling på overtid: {\"referanse\": \"${utbetaling.referanse}\", " +
-                    "\"digisosId\": \"$fiksDigisosId\", " +
-                    "\"status\": \"${utbetaling.status.name}\", " +
-                    "\"tilbakevirkende\": \"$tilbakevirkende\", \"overdueDays\": \"$overdueDays\", " +
-                    "\"utbetalingsDato\": \"${utbetaling.utbetalingsDato}\", \"forfallsdato\": \"$forfallsDato\", " +
-                    "\"kommunenummer\": \"$kommunenummer\", \"eventer\": $eventListe}",
-            )
-        }
-}

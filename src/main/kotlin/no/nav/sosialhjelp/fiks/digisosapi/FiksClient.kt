@@ -69,15 +69,9 @@ class FiksClient(
 
     /**
      * Citizen path: GET /soknader/soknader — fetches all søknader for the user identified by the token's `pid`.
-     * Saksbehandler path: POST /nav/soknader/soknader — body {"fnr": "<fnr>"}.
+     * For the saksbehandler path, use [hentAlleDigisosSakerForFnr] instead.
      */
-    suspend fun hentAlleDigisosSaker(caller: Caller): List<DigisosSak> =
-        when (caller) {
-            is Caller.Citizen -> hentAlleDigisosSakerCitizen(caller)
-            is Caller.Saksbehandler -> hentAlleDigisosSakerSaksbehandler(caller)
-        }
-
-    private suspend fun hentAlleDigisosSakerCitizen(caller: Caller.Citizen): List<DigisosSak> {
+    suspend fun hentAlleDigisosSaker(caller: Caller.Citizen): List<DigisosSak> {
         val url = "$baseUrl${FiksPaths.ALLE_SOKNADER}"
         val response =
             httpClient.get(url) {
@@ -87,11 +81,6 @@ class FiksClient(
                 header(HEADER_INTEGRASJON_PASSORD, integrasjonPassord)
             }
         return parseSakerResponse(response, "hentAlleDigisosSaker (citizen)")
-    }
-
-    private suspend fun hentAlleDigisosSakerSaksbehandler(caller: Caller.Saksbehandler): List<DigisosSak> {
-        // fnr must be passed in the request body to keep it out of URLs and access logs
-        error("fnr required for saksbehandler list — use hentAlleDigisosSakerForFnr(fnr, caller)")
     }
 
     suspend fun hentAlleDigisosSakerForFnr(

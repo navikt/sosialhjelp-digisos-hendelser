@@ -7,9 +7,9 @@ import no.nav.sosialhjelp.fiks.domain.Forvaltningsbrev
 import no.nav.sosialhjelp.fiks.domain.Krav
 import no.nav.sosialhjelp.fiks.domain.NavEnhet
 import no.nav.sosialhjelp.fiks.domain.NavKontorTildeling
-import no.nav.sosialhjelp.fiks.domain.Oppgavestatus
 import no.nav.sosialhjelp.fiks.domain.Sak
 import no.nav.sosialhjelp.fiks.domain.Soknad
+import no.nav.sosialhjelp.fiks.domain.SaksStatus
 import no.nav.sosialhjelp.fiks.domain.SoknadHendelse
 import no.nav.sosialhjelp.fiks.domain.SoknadsStatus
 import no.nav.sosialhjelp.fiks.domain.Utbetaling
@@ -33,7 +33,7 @@ internal data class FoldAccumulator(
     var status: SoknadsStatus = SoknadsStatus.SENDT,
     var mottaker: NavEnhet? = null,
     val navKontorHistorikk: MutableList<NavKontorTildeling> = mutableListOf(),
-    /** Track kontor for idempotency checks. */
+    /** Track kontor for idempotency checks in TildeltNavKontor.apply. */
     var tildeltNavKontor: String? = null,
     val saker: MutableList<Sak> = mutableListOf(),
     val vedtak: MutableList<Vedtak> = mutableListOf(),
@@ -79,7 +79,7 @@ internal data class FoldAccumulator(
             val hasActiveSaker =
                 saker.any { sak ->
                     vedtak.none { it.saksReferanse == sak.referanse } &&
-                        sak.saksStatus == no.nav.sosialhjelp.fiks.domain.SaksStatus.UNDER_BEHANDLING
+                        sak.saksStatus == SaksStatus.UNDER_BEHANDLING
                 }
             if (hasActiveSaker) return SoknadsStatus.UNDER_BEHANDLING
         }
@@ -88,7 +88,7 @@ internal data class FoldAccumulator(
 
     fun upsertSak(
         referanse: String,
-        saksStatus: no.nav.sosialhjelp.fiks.domain.SaksStatus?,
+        saksStatus: SaksStatus?,
         tittel: String?,
     ): Sak {
         val existing = saker.indexOfFirst { it.referanse == referanse }
@@ -114,17 +114,14 @@ internal data class FoldAccumulator(
 
     // --- Krav helpers ---
 
+    /**
+     * Upsert a krav by referanse and type. Replaces any existing krav of the same type and
+     * referanse, or appends if not present.
+     */
     fun upsertKrav(krav: Krav) {
         this.krav.removeAll { it.referanse == krav.referanse && it::class == krav::class }
         this.krav.add(krav)
     }
-
-    fun getKrav(referanse: String): Krav? = krav.firstOrNull { it.referanse == referanse }
-
-    fun getKravOfType(
-        referanse: String,
-        type: kotlin.reflect.KClass<out Krav>,
-    ): Krav? = krav.firstOrNull { it.referanse == referanse && it::class == type }
 
     /** Check whether any DokumentasjonEtterspurt krav exist (determines soknadKrav fallback). */
     fun harDokumentasjonEtterspurt(): Boolean = krav.any { it is Krav.DokumentasjonEtterspurt }
@@ -132,48 +129,5 @@ internal data class FoldAccumulator(
     /** Remove all DokumentasjonEtterspurt and SoknadVedleggKreves krav (wholesale replacement). */
     fun clearOppgaverKrav() {
         krav.removeAll { it is Krav.DokumentasjonEtterspurt || it is Krav.SoknadVedleggKreves }
-    }
-
-    /**
-     * Update vilkår utbetalingsReferanser: remove vilkår from utbetalinger no longer referenced,
-     * and ensure it is linked to those currently referenced.
-     * The actual utbetaling objects in [utbetalinger] carry references only by referanse strings;
-     * the krav list is the source of truth for vilkår-to-utbetaling linkage.
-     */
-    fun reconcileVilkarUtbetalingsReferanser(
-        vilkarReferanse: String,
-        nyeUtbetalingsReferanser: List<String>,
-    ) {
-        // Replace the vilkår in the krav list with updated references
-        val existing = krav.filterIsInstance<Krav.Vilkar>().firstOrNull { it.referanse == vilkarReferanse }
-        if (existing != null) {
-            val updated = existing.copy(utbetalingsReferanser = nyeUtbetalingsReferanser)
-            krav.removeAll { it is Krav.Vilkar && it.referanse == vilkarReferanse }
-            krav.add(updated)
-        }
-    }
-
-    fun reconcileDokumentasjonkravUtbetalingsReferanser(
-        dokkravReferanse: String,
-        nyeUtbetalingsReferanser: List<String>,
-    ) {
-        val existing = krav.filterIsInstance<Krav.Dokumentasjonkrav>().firstOrNull { it.referanse == dokkravReferanse }
-        if (existing != null) {
-            val updated = existing.copy(utbetalingsReferanser = nyeUtbetalingsReferanser)
-            krav.removeAll { it is Krav.Dokumentasjonkrav && it.referanse == dokkravReferanse }
-            krav.add(updated)
-        }
-    }
-
-    /**
-     * Oppgavestatus helper matching the two-app pattern:
-     * OPPFYLT/IKKE_OPPFYLT → RELEVANT (deprecated statuses — both apps collapse them).
-     */
-    companion object {
-        fun normalizeOppgavestatus(status: Oppgavestatus): Oppgavestatus =
-            when (status) {
-                Oppgavestatus.OPPFYLT, Oppgavestatus.IKKE_OPPFYLT -> Oppgavestatus.RELEVANT
-                else -> status
-            }
     }
 }

@@ -99,7 +99,7 @@ data class OppgaverTrukket(
 ) : SoknadHendelse
 
 /**
- * Date of the local date in the format "YYYY-MM-DD" used as a stable hash input.
+ * Returns a stable gruppeId string for grouping krav by frist.
  * Preserved from the existing sha256(frist.toString()) pattern both apps share.
  */
-fun gruppeIdForFrist(frist: LocalDate?): String? = frist?.toString()
+fun gruppeIdForFrist(frist: LocalDate): String = no.nav.sosialhjelp.fiks.utils.sha256(frist.toString())

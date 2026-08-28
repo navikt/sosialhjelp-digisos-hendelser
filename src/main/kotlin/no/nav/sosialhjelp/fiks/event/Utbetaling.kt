@@ -6,9 +6,6 @@ import no.nav.sosialhjelp.fiks.domain.UtbetalingEndret
 import no.nav.sosialhjelp.fiks.domain.UtbetalingsStatus
 import no.nav.sosialhjelp.fiks.utils.toInstant
 import no.nav.sosialhjelp.fiks.utils.toLocalDate
-import org.slf4j.LoggerFactory
-
-private val log = LoggerFactory.getLogger("no.nav.sosialhjelp.fiks.event.Utbetaling")
 
 internal fun FoldAccumulator.apply(hendelse: JsonUtbetaling) {
     val prevUtbetaling = getUtbetaling(hendelse.utbetalingsreferanse)

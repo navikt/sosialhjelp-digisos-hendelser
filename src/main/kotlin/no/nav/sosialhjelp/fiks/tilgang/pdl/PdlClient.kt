@@ -11,6 +11,7 @@ import io.ktor.http.contentType
 import no.nav.sosialhjelp.fiks.app.auth.Caller
 import no.nav.sosialhjelp.fiks.app.auth.Fnr
 import no.nav.sosialhjelp.fiks.utils.logger
+import no.nav.sosialhjelp.fiks.utils.maskerFnr
 
 private const val QUERY_HENT_PERSON = """
     query HentPerson(${'$'}ident: ID!) {
@@ -96,6 +97,6 @@ class PdlClient(
                     )
                     setBody(mapOf("query" to QUERY_HENT_PERSON, "variables" to mapOf("ident" to ident)))
                 }.body<PdlResponse>()
-        }.onFailure { log.error("PDL-kall feilet: ${it.message}") }
+        }.onFailure { log.error("PDL-kall feilet: ${it.message?.maskerFnr}") }
             .getOrNull()
 }

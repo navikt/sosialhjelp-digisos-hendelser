@@ -6,9 +6,6 @@ import no.nav.sosialhjelp.fiks.domain.KravEndret
 import no.nav.sosialhjelp.fiks.domain.KravType
 import no.nav.sosialhjelp.fiks.domain.Oppgavestatus
 import no.nav.sosialhjelp.fiks.utils.toInstant
-import org.slf4j.LoggerFactory
-
-private val log = LoggerFactory.getLogger("no.nav.sosialhjelp.fiks.event.Vilkar")
 
 internal fun FoldAccumulator.apply(hendelse: JsonVilkar) {
     val referanse = hendelse.vilkarreferanse
@@ -16,7 +13,7 @@ internal fun FoldAccumulator.apply(hendelse: JsonVilkar) {
     val existing = krav.filterIsInstance<Krav.Vilkar>().firstOrNull { it.referanse == referanse }
     val tidspunkt = hendelse.hendelsestidspunkt.toInstant()
 
-    val vilkar =
+    upsertKrav(
         if (existing != null) {
             Krav.Vilkar(
                 referanse = referanse,
@@ -39,10 +36,9 @@ internal fun FoldAccumulator.apply(hendelse: JsonVilkar) {
                 datoLagtTil = tidspunkt,
                 datoSistEndret = tidspunkt,
             )
-        }
-
-    krav.removeAll { it is Krav.Vilkar && it.referanse == referanse }
-    krav.add(vilkar)
+        },
+    )
 
     hendelser.add(KravEndret(tidspunkt = tidspunkt, kravReferanse = referanse, kravType = KravType.VILKAR))
 }
+

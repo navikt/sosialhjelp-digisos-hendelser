@@ -12,8 +12,7 @@ import kotlin.reflect.full.companionObject
 
 /**
  * Parse an ISO-8601 date-time string to [Instant].
- * Used in the fold engine — comparing as Instant avoids the raw-string-comparison footgun
- * that existed when timestamps were sorted lexicographically as strings.
+ * Used in the fold engine — comparing as Instant avoids the raw-string-comparison footgun.
  */
 fun String.toInstant(): Instant =
     ZonedDateTime
@@ -23,13 +22,11 @@ fun String.toInstant(): Instant =
 /**
  * Parse a date string to [LocalDate].
  * Accepts both ISO date format ("YYYY-MM-DD") and ISO date-time format
- * ("YYYY-MM-DDThh:mm:ss+offset[zone]"), extracting only the date part.
+ * ("YYYY-MM-DDThh:mm:ss+offset[zone]"), extracting the local date in Europe/Oslo.
  */
 fun String.toLocalDate(): LocalDate =
     if (this.length > 10) {
-        // ISO date-time — parse full and extract local date in Europe/Oslo
-        ZonedDateTime
-            .parse(this, ISO_DATE_TIME)
+        ZonedDateTime.parse(this, ISO_DATE_TIME)
             .withZoneSameInstant(ZoneId.of("Europe/Oslo"))
             .toLocalDate()
     } else {
@@ -38,24 +35,12 @@ fun String.toLocalDate(): LocalDate =
 
 fun unixToInstant(tidspunkt: Long): Instant = Instant.ofEpochMilli(tidspunkt)
 
-/** @deprecated Use [toInstant] instead to avoid timezone loss. */
-fun String.toLocalDateTime(): java.time.LocalDateTime =
-    ZonedDateTime
-        .parse(this, ISO_DATE_TIME)
-        .withZoneSameInstant(ZoneId.of("Europe/Oslo"))
-        .toLocalDateTime()
-
-/** @deprecated Use [unixToInstant] instead to avoid timezone loss. */
-fun unixToLocalDateTime(tidspunkt: Long): java.time.LocalDateTime =
-    java.time.LocalDateTime.ofInstant(Instant.ofEpochMilli(tidspunkt), ZoneId.of("Europe/Oslo"))
+/** Mask 11-digit Norwegian national IDs in error messages before logging or wrapping. */
+val String.maskerFnr: String get() = this.replace(Regex("""\b[0-9]{11}\b"""), "[FNR]")
 
 fun <R : Any> R.logger(): Lazy<Logger> = lazy { LoggerFactory.getLogger(unwrapCompanionClass(this.javaClass).name) }
 
 fun <T : Any> unwrapCompanionClass(ofClass: Class<T>): Class<*> =
     ofClass.enclosingClass?.takeIf {
-        ofClass.enclosingClass.kotlin.companionObject
-            ?.java == ofClass
+        ofClass.enclosingClass.kotlin.companionObject?.java == ofClass
     } ?: ofClass
-
-/** Mask 11-digit Norwegian national IDs in error messages before logging. */
-val String.maskerFnr: String get() = this.replace(Regex("""\b[0-9]{11}\b"""), "[FNR]")

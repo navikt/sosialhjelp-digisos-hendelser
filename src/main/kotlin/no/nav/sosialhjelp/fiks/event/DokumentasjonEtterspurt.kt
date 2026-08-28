@@ -45,7 +45,7 @@ internal fun FoldAccumulator.apply(hendelse: JsonDokumentasjonEtterspurt) {
                 beskrivelse = dok.tilleggsinformasjon,
                 status = Oppgavestatus.RELEVANT,
                 frist = frist,
-                gruppeId = frist?.let { sha256(gruppeIdForFrist(it) ?: it.toString()) },
+                gruppeId = frist?.let { gruppeIdForFrist(it) },
                 tidspunktForKrav = tidspunkt,
                 forvaltningsbrevRef = forvaltningsbrevRef,
             )

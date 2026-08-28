@@ -6,7 +6,6 @@ import no.nav.sosialhjelp.fiks.domain.KravEndret
 import no.nav.sosialhjelp.fiks.domain.KravType
 import no.nav.sosialhjelp.fiks.domain.Oppgavestatus
 import no.nav.sosialhjelp.fiks.domain.gruppeIdForFrist
-import no.nav.sosialhjelp.fiks.utils.sha256
 import no.nav.sosialhjelp.fiks.utils.toInstant
 import no.nav.sosialhjelp.fiks.utils.toLocalDate
 
@@ -17,7 +16,7 @@ internal fun FoldAccumulator.apply(hendelse: JsonDokumentasjonkrav) {
     val tidspunkt = hendelse.hendelsestidspunkt.toInstant()
     val existing = krav.filterIsInstance<Krav.Dokumentasjonkrav>().firstOrNull { it.referanse == referanse }
 
-    val dokkrav =
+    upsertKrav(
         Krav.Dokumentasjonkrav(
             referanse = referanse,
             tittel = hendelse.tittel,
@@ -26,12 +25,11 @@ internal fun FoldAccumulator.apply(hendelse: JsonDokumentasjonkrav) {
             frist = frist,
             saksReferanse = hendelse.saksreferanse,
             utbetalingsReferanser = hendelse.utbetalingsreferanse ?: emptyList(),
-            gruppeId = frist?.let { sha256(gruppeIdForFrist(it) ?: it.toString()) },
+            gruppeId = frist?.let { gruppeIdForFrist(it) },
             datoLagtTil = existing?.datoLagtTil ?: tidspunkt,
-        )
-
-    krav.removeAll { it is Krav.Dokumentasjonkrav && it.referanse == referanse }
-    krav.add(dokkrav)
+        ),
+    )
 
     hendelser.add(KravEndret(tidspunkt = tidspunkt, kravReferanse = referanse, kravType = KravType.DOKUMENTASJONKRAV))
 }
+

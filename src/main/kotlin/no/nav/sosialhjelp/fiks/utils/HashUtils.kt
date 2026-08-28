@@ -11,4 +11,4 @@ private fun hashString(
     MessageDigest
         .getInstance(algorithm)
         .digest(input.toByteArray())
-        .fold("") { str, it -> str + "%02x".format(it) }
+        .fold("") { acc, byte -> acc + "%02x".format(byte) }

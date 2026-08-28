@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ktor)
     alias(libs.plugins.spotless)
+    alias(libs.plugins.detekt)
 }
 
 kotlin {
@@ -86,4 +87,11 @@ spotless {
     kotlinGradle {
         ktlint()
     }
+}
+
+detekt {
+    config.setFrom(files("$rootDir/detekt.yml"))
+    buildUponDefaultConfig = true
+    // Wire detekt into the standard check lifecycle so CI catches it automatically
+    tasks.named("check") { dependsOn(tasks.named("detekt")) }
 }

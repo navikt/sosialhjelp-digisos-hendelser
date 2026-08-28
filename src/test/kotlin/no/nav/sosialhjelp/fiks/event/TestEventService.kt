@@ -65,17 +65,6 @@ internal fun mockDigisosSak(
     return sak
 }
 
-/** Run apply on a fresh accumulator for unit-testing individual apply functions. */
-internal fun newAccumulator(
-    fiksDigisosId: String = "test-id",
-    kommunenummer: String = "0301",
-): FoldAccumulator =
-    FoldAccumulator(
-        fiksDigisosId = fiksDigisosId,
-        kommunenummer = kommunenummer,
-        sistEndret = java.time.Instant.now(),
-    )
-
 /** Get all krav of a specific type from a SoknadResponse. */
 internal inline fun <reified T : Krav> SoknadResponse.kravOf(): List<T> = soknad.krav.filterIsInstance<T>()
 

@@ -21,11 +21,10 @@ import no.nav.sosialhjelp.api.fiks.exceptions.FiksServerException
 import no.nav.sosialhjelp.fiks.app.auth.Caller
 import no.nav.sosialhjelp.fiks.app.texas.TexasClient
 import no.nav.sosialhjelp.fiks.utils.logger
-import org.slf4j.LoggerFactory
+import no.nav.sosialhjelp.fiks.utils.maskerFnr
 
 private const val HEADER_INTEGRASJON_ID = "IntegrasjonId"
 private const val HEADER_INTEGRASJON_PASSORD = "IntegrasjonPassord"
-private val log = LoggerFactory.getLogger("no.nav.sosialhjelp.fiks.digisosapi.BulkFiksClient")
 
 /**
  * Request body for the bulk dokumenter endpoint.
@@ -167,13 +166,13 @@ class BulkFiksClient(
                     runCatching {
                         objectMapper.readValue(body, JsonDigisosSoker::class.java)
                     }.onFailure {
-                        log.warn("Klarte ikke parse JsonDigisosSoker for part '$partName': ${it.message}")
+                        log.warn("Klarte ikke parse JsonDigisosSoker for part '$partName': ${it.message?.maskerFnr}")
                     }.getOrNull()
 
                 result[fiksDigisosId] = jsonDigisosSoker
             }
         } catch (e: Exception) {
-            log.error("Feil ved parsing av multipart/mixed respons: ${e.message}", e)
+            log.error("Feil ved parsing av multipart/mixed respons: ${e.message?.maskerFnr}", e)
         }
 
         log.info("Bulk: parsed ${result.size} av ${eligible.size} dokumenter")

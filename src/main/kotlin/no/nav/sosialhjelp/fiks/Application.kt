@@ -117,8 +117,7 @@ fun Application.module() {
         provide<FiksService> { FiksService(resolve(), resolve(), resolve()) }
         provide<EventServiceFactory> { EventServiceFactory(fiksService = resolve(), norgClient = resolve()) }
         provide<BulkOversiktService> {
-            val factory: EventServiceFactory = resolve()
-            // Create a no-op vedleggService for oversikt (krav via soknadKrav not needed for list view)
+            // No-op VedleggService for oversikt — krav from soknadKrav fallback not needed in list view
             val noopVedlegg =
                 object : no.nav.sosialhjelp.fiks.vedlegg.VedleggService {
                     override suspend fun hentSoknadVedleggMedStatus(
@@ -166,7 +165,7 @@ fun Application.module() {
 
     configureMonitoring(appMeterRegistry)
     configureSerialization()
-    configureAuth(props)
+    configureAuth()
     configureStatusPages()
     configureRouting(appMeterRegistry, callerRegistry)
 
@@ -189,7 +188,7 @@ fun Application.configureSerialization() {
     }
 }
 
-fun Application.configureAuth(props: ClientProperties) {
+fun Application.configureAuth() {
     val idportenJwksUri = System.getenv("IDPORTEN_JWKS_URI") ?: ""
     val idportenIssuer = System.getenv("IDPORTEN_ISSUER") ?: ""
     val azureJwksUri = System.getenv("AZURE_APP_JWKS_URI") ?: ""

@@ -17,6 +17,8 @@ import java.time.Duration
 class ValkeyClient(
     host: String,
     port: Int,
+    username: String = "",
+    password: String = "",
 ) : Closeable {
     private val log by logger()
 
@@ -26,7 +28,21 @@ class ValkeyClient(
             .registerModule(JavaTimeModule())
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
 
-    private val redisClient: RedisClient = RedisClient.create(RedisURI.create(host, port))
+    private val redisClient: RedisClient =
+        run {
+            val uri =
+                RedisURI
+                    .builder()
+                    .withHost(host)
+                    .withPort(port)
+                    .withSsl(true)
+                    .apply {
+                        if (username.isNotBlank() && password.isNotBlank()) {
+                            withAuthentication(username, password.toCharArray())
+                        }
+                    }.build()
+            RedisClient.create(uri)
+        }
 
     private val connection: StatefulRedisConnection<String, String>? =
         try {

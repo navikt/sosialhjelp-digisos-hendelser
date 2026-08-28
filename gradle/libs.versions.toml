@@ -1,5 +1,6 @@
 [versions]
 kotlin = "2.3.20"
+opentelemetry = "1.40.0"
 ktor = "3.2.0"
 coroutines = "1.10.1"
 serialization = "1.8.1"
@@ -46,6 +47,8 @@ jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-dat
 lettuce-core = { module = "io.lettuce:lettuce-core", version.ref = "lettuce" }
 
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
+
+opentelemetry-api = { module = "io.opentelemetry:opentelemetry-api", version.ref = "opentelemetry" }
 
 sosialhjelp-common-api = { module = "no.nav.sosialhjelp:sosialhjelp-common-api", version.ref = "sosialhjelp-common" }
 sosialhjelp-filformat = { module = "no.nav.sbl.dialogarena:soknadsosialhjelp-filformat", version.ref = "filformat" }

@@ -3,78 +3,53 @@ package no.nav.sosialhjelp.fiks.event
 import no.nav.sbl.soknadsosialhjelp.digisos.soker.filreferanse.JsonDokumentlagerFilreferanse
 import no.nav.sbl.soknadsosialhjelp.digisos.soker.filreferanse.JsonSvarUtFilreferanse
 import no.nav.sbl.soknadsosialhjelp.digisos.soker.hendelse.JsonVedtakFattet
-import no.nav.sosialhjelp.fiks.app.ClientProperties
-import no.nav.sosialhjelp.fiks.digisossak.saksstatus.DEFAULT_SAK_TITTEL
-import no.nav.sosialhjelp.fiks.domain.Hendelse
-import no.nav.sosialhjelp.fiks.domain.HendelseTekstType
-import no.nav.sosialhjelp.fiks.domain.InternalDigisosSoker
-import no.nav.sosialhjelp.fiks.domain.Sak
-import no.nav.sosialhjelp.fiks.domain.SaksStatus
-import no.nav.sosialhjelp.fiks.domain.UrlResponse
+import no.nav.sosialhjelp.fiks.domain.DokumentRef
 import no.nav.sosialhjelp.fiks.domain.UtfallVedtak
 import no.nav.sosialhjelp.fiks.domain.Vedtak
-import no.nav.sosialhjelp.fiks.utils.hentUrlFraFilreferanse
-import no.nav.sosialhjelp.fiks.utils.toLocalDateTime
-import org.slf4j.LoggerFactory
+import no.nav.sosialhjelp.fiks.domain.VedtakFattet
+import no.nav.sosialhjelp.fiks.utils.toInstant
 
-private val log = LoggerFactory.getLogger(JsonVedtakFattet::class.java.name)
-
-fun InternalDigisosSoker.apply(
-    hendelse: JsonVedtakFattet,
-    clientProperties: ClientProperties,
-) {
-    val utfallString = hendelse.utfall?.name
-    val utfall = utfallString?.let { UtfallVedtak.valueOf(it) }
-    val vedtaksfilUrl = hentUrlFraFilreferanse(clientProperties, hendelse.vedtaksfil.referanse)
-
-    val id =
-        when (val referanse = hendelse.vedtaksfil.referanse) {
-            is JsonDokumentlagerFilreferanse -> referanse.id
-            is JsonSvarUtFilreferanse -> referanse.id
-            else -> error("Ikke støttet referansetype ${referanse.type}")
+internal fun FoldAccumulator.apply(hendelse: JsonVedtakFattet) {
+    val dokumentRef: DokumentRef =
+        when (val ref = hendelse.vedtaksfil.referanse) {
+            is JsonDokumentlagerFilreferanse -> DokumentRef.Dokumentlager(ref.id)
+            is JsonSvarUtFilreferanse -> DokumentRef.SvarUt(ref.id, ref.nr)
+            else -> error("Ikke støttet referansetype ${ref.type}")
         }
-    val vedtakFattet =
+
+    val utfall = hendelse.utfall?.name?.let { UtfallVedtak.valueOf(it) }
+    val saksReferanse = hendelse.saksreferanse
+
+    // Find or create the sak for this vedtak.
+    // If saksreferanse is non-null but no matching sak exists, create one.
+    // If saksreferanse is null, the vedtak is sakless (Vedtak.saksReferanse == null).
+    val sak =
+        if (saksReferanse != null) {
+            getSak(saksReferanse) ?: upsertSak(saksReferanse, null, null)
+        } else {
+            null
+        }
+
+    vedtak.add(
         Vedtak(
-            id,
-            utfall,
-            vedtaksfilUrl,
-            hendelse.hendelsestidspunkt.toLocalDateTime().toLocalDate(),
-        )
+            referanse = dokumentRef,
+            utfall = utfall,
+            dato =
+                hendelse.hendelsestidspunkt
+                    .toInstant()
+                    .atZone(java.time.ZoneId.of("Europe/Oslo"))
+                    .toLocalDate(),
+            saksReferanse = saksReferanse,
+        ),
+    )
 
-    var sakForReferanse = saker.firstOrNull { it.referanse == hendelse.saksreferanse || it.referanse == "default" }
-
-    if (sakForReferanse == null) {
-        sakForReferanse =
-            Sak(
-                referanse = hendelse.saksreferanse ?: "default",
-                saksStatus = SaksStatus.UNDER_BEHANDLING,
-                tittel = DEFAULT_SAK_TITTEL,
-                vedtak = mutableListOf(),
-                utbetalinger = mutableListOf(),
-            )
-        saker.add(sakForReferanse)
-    }
-    sakForReferanse.vedtak.add(vedtakFattet)
-
-    log.info("Hendelse: Tidspunkt: ${hendelse.hendelsestidspunkt} Vedtak fattet. <skjult tittel> er ferdigbehandlet")
-    if (sakForReferanse.tittel != null) {
-        historikk.add(
-            Hendelse(
-                HendelseTekstType.SAK_FERDIGBEHANDLET_MED_TITTEL,
-                hendelse.hendelsestidspunkt.toLocalDateTime(),
-                UrlResponse(HendelseTekstType.VIS_BREVET_LENKETEKST, vedtaksfilUrl),
-                tekstArgument = sakForReferanse.tittel,
-                saksReferanse = hendelse.saksreferanse,
-            ),
-        )
-    } else {
-        historikk.add(
-            Hendelse(
-                HendelseTekstType.SAK_FERDIGBEHANDLET_UTEN_TITTEL,
-                hendelse.hendelsestidspunkt.toLocalDateTime(),
-                UrlResponse(HendelseTekstType.VIS_BREVET_LENKETEKST, vedtaksfilUrl),
-                saksReferanse = hendelse.saksreferanse,
-            ),
-        )
-    }
+    hendelser.add(
+        VedtakFattet(
+            tidspunkt = hendelse.hendelsestidspunkt.toInstant(),
+            saksReferanse = saksReferanse,
+            saksTittel = sak?.tittel,
+            utfall = utfall,
+            vedtakRef = dokumentRef,
+        ),
+    )
 }

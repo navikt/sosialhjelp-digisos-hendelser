@@ -45,6 +45,7 @@ dependencies {
     implementation(libs.ktor.serialization.jackson)
     implementation(libs.lettuce.core)
     implementation(libs.micrometer.registry.prometheus)
+    implementation(libs.opentelemetry.api)
     implementation(libs.sosialhjelp.filformat)
     implementation(libs.sosialhjelp.common.api)
 

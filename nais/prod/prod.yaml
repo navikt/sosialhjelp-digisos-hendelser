@@ -5,8 +5,6 @@ metadata:
   namespace: teamdigisos
   labels:
     team: teamdigisos
-  annotations:
-    texas.nais.io/enabled: "true"
 spec:
   image: {{image}}
   port: 8080
@@ -20,11 +18,22 @@ spec:
     path: /internal/health
     initialDelay: 20
     timeout: 1
+  prometheus:
+    enabled: true
+    path: /internal/metrics
   replicas:
     min: 2
     max: 4
   tokenx:
     enabled: true
+  azure:
+    application:
+      enabled: true
+      allowAllUsers: false
+      claims:
+        groups:
+          - id: "82efbcf9-7a99-4c60-9242-79c439ca3cdc" # 0000-GA-Modia_Sosialhjelp_NKS
+          - id: "beca52a8-5551-4db0-9860-78355b796f14" # team digisos
   observability:
     autoInstrumentation:
       enabled: true
@@ -43,13 +52,17 @@ spec:
       external:
         - host: api.fiks.ks.no
         - host: minside.kommune.no
+        - host: pdl-api.prod-fss-pub.nais.io
       rules:
         - application: norg2
           namespace: org
+        - application: skjermede-personer-pip
+          namespace: nom
     inbound:
       rules:
         - application: sosialhjelp-innsyn-api
-        - application: sosialhjelp-innsyn-api
+        - application: sosialhjelp-modia-api
+        - application: sosialhjelp-adminpanel
   resources:
     limits:
       memory: 2Gi
@@ -61,10 +74,13 @@ spec:
       access: readwrite
   envFrom:
     - secret: fiks-integrasjon-secret
+    - secret: fiks-service-secrets
   env:
     - name: FIKS_DIGISOS_ENDPOINT_URL
       value: "https://api.fiks.ks.no"
-    - name: FIKS_DOKUMENTLAGER_ENDPOINT_URL
-      value: "https://minside.kommune.no"
     - name: NORG_ENDPOINT_URL
       value: "http://norg2.org/norg2/api/v1"
+    - name: PDL_ENDPOINT_URL
+      value: "https://pdl-api.prod-fss-pub.nais.io/graphql"
+    - name: SKJERMEDE_PERSONER_ENDPOINT_URL
+      value: "http://skjermede-personer-pip.nom"

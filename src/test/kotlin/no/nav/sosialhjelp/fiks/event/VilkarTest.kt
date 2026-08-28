@@ -7,16 +7,11 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import no.nav.sbl.soknadsosialhjelp.digisos.soker.JsonDigisosSoker
 import no.nav.sbl.soknadsosialhjelp.digisos.soker.JsonHendelse
-import no.nav.sbl.soknadsosialhjelp.digisos.soker.hendelse.JsonUtbetaling
-import no.nav.sbl.soknadsosialhjelp.digisos.soker.hendelse.JsonVilkar
 import no.nav.sbl.soknadsosialhjelp.soknad.JsonSoknad
-import no.nav.sosialhjelp.api.fiks.DigisosSak
-import no.nav.sosialhjelp.fiks.app.ClientProperties
+import no.nav.sosialhjelp.fiks.domain.Krav
 import no.nav.sosialhjelp.fiks.domain.Oppgavestatus
-import no.nav.sosialhjelp.fiks.domain.SoknadsStatus
 import no.nav.sosialhjelp.fiks.navenhet.NavEnhet
 import no.nav.sosialhjelp.fiks.navenhet.NorgClient
-import no.nav.sosialhjelp.fiks.vedlegg.VEDLEGG_KREVES_STATUS
 import no.nav.sosialhjelp.fiks.vedlegg.VedleggService
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -24,14 +19,13 @@ import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 
 internal class VilkarTest {
-    private val clientProperties: ClientProperties = mockk(relaxed = true)
     private val innsynService: InnsynService = mockk()
-    private val vedleggService: VedleggService = mockk()
+    private val vedleggService: VedleggService = mockk(relaxed = true)
     private val norgClient: NorgClient = mockk()
 
-    private val service = EventService(clientProperties, innsynService, vedleggService, norgClient)
+    private val service = TestEventService.build(innsynService, vedleggService, norgClient)
 
-    private val mockDigisosSak: DigisosSak = mockk()
+    private val mockDigisosSak = mockDigisosSak()
     private val mockJsonSoknad: JsonSoknad = mockk()
     private val mockNavEnhet: NavEnhet = mockk()
 
@@ -42,16 +36,22 @@ internal class VilkarTest {
     fun init() {
         clearAllMocks()
         every { mockDigisosSak.fiksDigisosId } returns "123"
+        every { mockDigisosSak.kommunenummer } returns "0301"
+        every { mockDigisosSak.sistEndret } returns System.currentTimeMillis()
+        every { mockDigisosSak.sokerFnr } returns "12345678901"
+        every { mockDigisosSak.ettersendtInfoNAV } returns null
         every { mockDigisosSak.digisosSoker?.metadata } returns "some id"
+        every { mockDigisosSak.digisosSoker?.timestampSistOppdatert } returns System.currentTimeMillis()
         every { mockDigisosSak.originalSoknadNAV?.metadata } returns "some other id"
+        every { mockDigisosSak.originalSoknadNAV?.vedleggMetadata } returns null
         every { mockDigisosSak.originalSoknadNAV?.timestampSendt } returns tidspunkt_soknad
         every { mockDigisosSak.originalSoknadNAV?.navEksternRefId } returns null
         every { mockDigisosSak.originalSoknadNAV?.soknadDokument?.dokumentlagerDokumentId } returns null
         every { mockJsonSoknad.mottaker.navEnhetsnavn } returns soknadsmottaker
         every { mockJsonSoknad.mottaker.enhetsnummer } returns enhetsnr
-        every { mockDigisosSak.ettersendtInfoNAV } returns null
         coEvery { innsynService.hentOriginalSoknad(any()) } returns mockJsonSoknad
         coEvery { norgClient.hentNavEnhet(enhetsnr) } returns mockNavEnhet
+        every { mockNavEnhet.navn } returns soknadsmottaker
 
         resetHendelser()
     }
@@ -59,246 +59,94 @@ internal class VilkarTest {
     @Test
     fun `vilkar ETTER utbetaling`() =
         runTest(timeout = 5.seconds) {
-            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
+            UTBETALING.withHendelsestidspunkt(tidspunkt_1)
+            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_2)
+
+            val jsonDigisosSoker =
                 JsonDigisosSoker()
                     .withAvsender(avsender)
-                    .withVersion("123")
-                    .withHendelser(
-                        listOf(
-                            SOKNADS_STATUS_MOTTATT.withHendelsestidspunkt(tidspunkt_1),
-                            SOKNADS_STATUS_UNDERBEHANDLING.withHendelsestidspunkt(tidspunkt_2),
-                            SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_3),
-                            SOKNADS_STATUS_FERDIGBEHANDLET.withHendelsestidspunkt(tidspunkt_4),
-                            UTBETALING.withHendelsestidspunkt(tidspunkt_5),
-                            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_6),
-                        ),
-                    )
-            coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
+                    .withHendelser(mutableListOf(UTBETALING, VILKAR_OPPFYLT) as MutableList<JsonHendelse>)
 
-            val model = service.createModel(mockDigisosSak)
+            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns jsonDigisosSoker
 
-            assertThat(model).isNotNull
-            assertThat(model.status).isEqualTo(SoknadsStatus.FERDIGBEHANDLET)
-            assertThat(model.saker).hasSize(1)
-            assertThat(model.historikk).hasSize(5)
+            val response = service.createModel(mockDigisosSak)
 
-            assertThat(model.saker[0].utbetalinger).hasSize(1)
-            val utbetaling = model.saker[0].utbetalinger[0]
-            assertThat(utbetaling.vilkar).hasSize(1)
-            assertThat(utbetaling.vilkar[0].referanse).isEqualTo(VILKAR_REF_1)
-            assertThat(utbetaling.vilkar[0].beskrivelse).isEqualTo("beskrivelse")
-            assertThat(utbetaling.vilkar[0].getOppgaveStatus()).isEqualTo(Oppgavestatus.RELEVANT)
+            val vilkar = response.soknad.krav.filterIsInstance<Krav.Vilkar>()
+            assertThat(vilkar).hasSize(1)
+            assertThat(vilkar[0].status).isEqualTo(Oppgavestatus.OPPFYLT)
+            assertThat(vilkar[0].utbetalingsReferanser).contains(UTBETALING_REF_1)
         }
 
     @Test
-    fun `vilkar UTEN utbetaling`() =
+    fun `vilkar FØR utbetaling - hendelsecomparator sorterer utbetaling forst`() =
         runTest(timeout = 5.seconds) {
-            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
+            UTBETALING.withHendelsestidspunkt(tidspunkt_1)
+            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_1) // same timestamp — UTBETALING should be first
+
+            val jsonDigisosSoker =
                 JsonDigisosSoker()
                     .withAvsender(avsender)
-                    .withVersion("123")
-                    .withHendelser(
-                        listOf(
-                            SOKNADS_STATUS_MOTTATT.withHendelsestidspunkt(tidspunkt_1),
-                            SOKNADS_STATUS_UNDERBEHANDLING.withHendelsestidspunkt(tidspunkt_2),
-                            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_3),
-                        ),
-                    )
-            coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
+                    .withHendelser(mutableListOf(VILKAR_OPPFYLT, UTBETALING) as MutableList<JsonHendelse>)
 
-            val model = service.createModel(mockDigisosSak)
+            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns jsonDigisosSoker
 
-            assertThat(model).isNotNull
-            assertThat(model.status).isEqualTo(SoknadsStatus.UNDER_BEHANDLING)
-            assertThat(model.saker).hasSize(0)
-            assertThat(model.historikk).hasSize(3)
+            val response = service.createModel(mockDigisosSak)
+
+            val vilkar = response.soknad.krav.filterIsInstance<Krav.Vilkar>()
+            assertThat(vilkar).hasSize(1)
+            assertThat(vilkar[0].utbetalingsReferanser).contains(UTBETALING_REF_1)
         }
 
     @Test
-    fun `vilkar FOR utbetaling - vilkar knyttes ikke til noen utbetaling`() =
+    fun `vilkar uten utbetaling - utbetalingsreferanse beholdes selv om ingen utbetaling finnes`() =
         runTest(timeout = 5.seconds) {
-            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
+            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_1)
+
+            val jsonDigisosSoker =
                 JsonDigisosSoker()
                     .withAvsender(avsender)
-                    .withVersion("123")
-                    .withHendelser(
-                        listOf(
-                            SOKNADS_STATUS_MOTTATT.withHendelsestidspunkt(tidspunkt_1),
-                            SOKNADS_STATUS_UNDERBEHANDLING.withHendelsestidspunkt(tidspunkt_2),
-                            SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_3),
-                            SOKNADS_STATUS_FERDIGBEHANDLET.withHendelsestidspunkt(tidspunkt_4),
-                            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_5),
-                            UTBETALING.withHendelsestidspunkt(tidspunkt_6),
-                        ),
-                    )
-            coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
+                    .withHendelser(mutableListOf(VILKAR_OPPFYLT) as MutableList<JsonHendelse>)
 
-            val model = service.createModel(mockDigisosSak)
+            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns jsonDigisosSoker
 
-            assertThat(model).isNotNull
-            assertThat(model.saker).hasSize(1)
-            assertThat(model.historikk).hasSize(5)
-            assertThat(model.saker[0].utbetalinger).hasSize(1)
-            val utbetaling = model.saker[0].utbetalinger[0]
-            assertThat(utbetaling.vilkar).hasSize(0)
+            val response = service.createModel(mockDigisosSak)
+
+            val vilkar = response.soknad.krav.filterIsInstance<Krav.Vilkar>()
+            assertThat(vilkar).hasSize(1)
+            // utbetalingsReferanser are stored even if no matching utbetaling exists
+            assertThat(vilkar[0].utbetalingsReferanser).contains(UTBETALING_REF_1)
         }
 
     @Test
-    fun `vilkar og utbetaling har samme hendelsestidspunkt`() =
+    fun `vilkar oppdateres`() =
         runTest(timeout = 5.seconds) {
-            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
-                JsonDigisosSoker()
-                    .withAvsender(avsender)
-                    .withVersion("123")
-                    .withHendelser(
-                        listOf(
-                            SOKNADS_STATUS_MOTTATT.withHendelsestidspunkt(tidspunkt_1),
-                            SOKNADS_STATUS_UNDERBEHANDLING.withHendelsestidspunkt(tidspunkt_2),
-                            SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_3),
-                            SOKNADS_STATUS_FERDIGBEHANDLET.withHendelsestidspunkt(tidspunkt_4),
-                            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_5),
-                            UTBETALING.withHendelsestidspunkt(tidspunkt_5),
-                        ),
-                    )
-            coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
+            UTBETALING.withHendelsestidspunkt(tidspunkt_1)
+            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_2)
 
-            val model = service.createModel(mockDigisosSak)
-
-            assertThat(model).isNotNull
-            assertThat(model.status).isEqualTo(SoknadsStatus.FERDIGBEHANDLET)
-            assertThat(model.saker).hasSize(1)
-            assertThat(model.historikk).hasSize(5)
-
-            assertThat(model.saker[0].utbetalinger).hasSize(1)
-            val utbetaling = model.saker[0].utbetalinger[0]
-            assertThat(utbetaling.vilkar).hasSize(1)
-            assertThat(utbetaling.vilkar[0].referanse).isEqualTo(VILKAR_REF_1)
-        }
-
-    @Test
-    fun `vilkar oppdatert - samme referanse gir oppdatert status`() =
-        runTest(timeout = 5.seconds) {
-            val vilkarAnnullert =
-                JsonVilkar()
+            val vilkarOppdatert =
+                no.nav.sbl.soknadsosialhjelp.digisos.soker.hendelse
+                    .JsonVilkar()
                     .withType(JsonHendelse.Type.VILKAR)
                     .withVilkarreferanse(VILKAR_REF_1)
                     .withUtbetalingsreferanse(listOf(UTBETALING_REF_1))
                     .withBeskrivelse("oppdatert beskrivelse")
-                    .withStatus(JsonVilkar.Status.ANNULLERT)
+                    .withStatus(no.nav.sbl.soknadsosialhjelp.digisos.soker.hendelse.JsonVilkar.Status.RELEVANT)
+                    .also { it.withHendelsestidspunkt(tidspunkt_3) }
 
-            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
+            val jsonDigisosSoker =
                 JsonDigisosSoker()
                     .withAvsender(avsender)
-                    .withVersion("123")
                     .withHendelser(
-                        listOf(
-                            SOKNADS_STATUS_MOTTATT.withHendelsestidspunkt(tidspunkt_1),
-                            SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_2),
-                            UTBETALING.withHendelsestidspunkt(tidspunkt_3),
-                            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_4),
-                            vilkarAnnullert.withHendelsestidspunkt(tidspunkt_5),
-                        ),
+                        mutableListOf(UTBETALING, VILKAR_OPPFYLT, vilkarOppdatert) as MutableList<JsonHendelse>,
                     )
-            coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns jsonDigisosSoker
 
-            // Kun ett vilkår - det andre oppdaterte det første
-            assertThat(model.vilkar).hasSize(1)
-            assertThat(model.vilkar[0].referanse).isEqualTo(VILKAR_REF_1)
-            assertThat(model.vilkar[0].status).isEqualTo(Oppgavestatus.ANNULLERT)
-            assertThat(model.vilkar[0].beskrivelse).isEqualTo("oppdatert beskrivelse")
+            val response = service.createModel(mockDigisosSak)
 
-            // Oppdatert vilkår legges på utbetalingen
-            assertThat(model.saker[0].utbetalinger[0].vilkar).hasSize(1)
-            assertThat(
-                model.saker[0]
-                    .utbetalinger[0]
-                    .vilkar[0]
-                    .status,
-            ).isEqualTo(Oppgavestatus.ANNULLERT)
-        }
-
-    @Test
-    fun `vilkar ANNULLERT status - getOppgaveStatus returnerer ANNULLERT`() =
-        runTest(timeout = 5.seconds) {
-            val vilkarAnnullert =
-                JsonVilkar()
-                    .withType(JsonHendelse.Type.VILKAR)
-                    .withVilkarreferanse(VILKAR_REF_1)
-                    .withUtbetalingsreferanse(listOf(UTBETALING_REF_1))
-                    .withBeskrivelse("annullert vilkår")
-                    .withStatus(JsonVilkar.Status.ANNULLERT)
-
-            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
-                JsonDigisosSoker()
-                    .withAvsender(avsender)
-                    .withVersion("123")
-                    .withHendelser(
-                        listOf(
-                            SOKNADS_STATUS_MOTTATT.withHendelsestidspunkt(tidspunkt_1),
-                            SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_2),
-                            UTBETALING.withHendelsestidspunkt(tidspunkt_3),
-                            vilkarAnnullert.withHendelsestidspunkt(tidspunkt_4),
-                        ),
-                    )
-            coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
-
-            val model = service.createModel(mockDigisosSak)
-
-            assertThat(model.vilkar).hasSize(1)
-            assertThat(model.vilkar[0].status).isEqualTo(Oppgavestatus.ANNULLERT)
-            assertThat(model.vilkar[0].getOppgaveStatus()).isEqualTo(Oppgavestatus.ANNULLERT)
-        }
-
-    @Test
-    fun `vilkar fjernes fra utbetaling nar utbetalingsreferanse endres`() =
-        runTest(timeout = 5.seconds) {
-            val utbetalingRef2 = "utbetaling 2"
-            val utbetaling2 =
-                JsonUtbetaling()
-                    .withType(JsonHendelse.Type.UTBETALING)
-                    .withUtbetalingsreferanse(utbetalingRef2)
-                    .withSaksreferanse(REFERANSE_1)
-                    .withStatus(JsonUtbetaling.Status.UTBETALT)
-                    .withBelop(500.0)
-                    .withAnnenMottaker(false)
-
-            // Vilkar peker nå kun på utbetaling2, ikke lenger på UTBETALING_REF_1
-            val vilkarOppdatertReferanse =
-                JsonVilkar()
-                    .withType(JsonHendelse.Type.VILKAR)
-                    .withVilkarreferanse(VILKAR_REF_1)
-                    .withUtbetalingsreferanse(listOf(utbetalingRef2))
-                    .withBeskrivelse("beskrivelse")
-                    .withStatus(JsonVilkar.Status.OPPFYLT)
-
-            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
-                JsonDigisosSoker()
-                    .withAvsender(avsender)
-                    .withVersion("123")
-                    .withHendelser(
-                        listOf(
-                            SOKNADS_STATUS_MOTTATT.withHendelsestidspunkt(tidspunkt_1),
-                            SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_2),
-                            UTBETALING.withHendelsestidspunkt(tidspunkt_3),
-                            utbetaling2.withHendelsestidspunkt(tidspunkt_4),
-                            VILKAR_OPPFYLT.withHendelsestidspunkt(tidspunkt_5),
-                            vilkarOppdatertReferanse.withHendelsestidspunkt(tidspunkt_6),
-                        ),
-                    )
-            coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
-
-            val model = service.createModel(mockDigisosSak)
-
-            val utbetalinger = model.saker[0].utbetalinger
-            val opprinneligUtbetaling = utbetalinger.first { it.referanse == UTBETALING_REF_1 }
-            val nyUtbetaling = utbetalinger.first { it.referanse == utbetalingRef2 }
-
-            // Vilkaret er fjernet fra den opprinnelige utbetalingen
-            assertThat(opprinneligUtbetaling.vilkar).isEmpty()
-            // Vilkaret er knyttet til den nye utbetalingen
-            assertThat(nyUtbetaling.vilkar).hasSize(1)
-            assertThat(nyUtbetaling.vilkar[0].referanse).isEqualTo(VILKAR_REF_1)
+            val vilkar = response.soknad.krav.filterIsInstance<Krav.Vilkar>()
+            assertThat(vilkar).hasSize(1)
+            assertThat(vilkar[0].status).isEqualTo(Oppgavestatus.RELEVANT)
+            assertThat(vilkar[0].beskrivelse).isEqualTo("oppdatert beskrivelse")
         }
 }

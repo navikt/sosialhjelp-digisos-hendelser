@@ -2,17 +2,12 @@ package no.nav.sosialhjelp.fiks.event
 
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import no.nav.sbl.soknadsosialhjelp.digisos.soker.JsonDigisosSoker
-import no.nav.sbl.soknadsosialhjelp.soknad.JsonSoknad
-import no.nav.sosialhjelp.api.fiks.DigisosSak
-import no.nav.sosialhjelp.fiks.app.ClientProperties
-import no.nav.sosialhjelp.fiks.digisossak.saksstatus.DEFAULT_SAK_TITTEL
-import no.nav.sosialhjelp.fiks.domain.HendelseTekstType
+import no.nav.sosialhjelp.fiks.domain.DokumentRef
 import no.nav.sosialhjelp.fiks.domain.UtfallVedtak
-import no.nav.sosialhjelp.fiks.navenhet.NavEnhet
+import no.nav.sosialhjelp.fiks.domain.VedtakFattet
 import no.nav.sosialhjelp.fiks.navenhet.NorgClient
 import no.nav.sosialhjelp.fiks.vedlegg.VEDLEGG_KREVES_STATUS
 import no.nav.sosialhjelp.fiks.vedlegg.VedleggService
@@ -22,41 +17,22 @@ import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 
 internal class VedtakFattetTest {
-    private val clientProperties: ClientProperties = mockk(relaxed = true)
     private val innsynService: InnsynService = mockk()
     private val vedleggService: VedleggService = mockk()
     private val norgClient: NorgClient = mockk()
 
-    private val service = EventService(clientProperties, innsynService, vedleggService, norgClient)
-
-    private val mockDigisosSak: DigisosSak = mockk()
-    private val mockJsonSoknad: JsonSoknad = mockk()
-    private val mockNavEnhet: NavEnhet = mockk()
-
-    private val soknadsmottaker = "The Office"
-    private val enhetsnr = "2317"
+    private val service = TestEventService.build(innsynService, vedleggService, norgClient)
 
     @BeforeEach
     fun init() {
         clearAllMocks()
-        every { mockDigisosSak.fiksDigisosId } returns "123"
-        every { mockDigisosSak.digisosSoker?.metadata } returns "some id"
-        every { mockDigisosSak.originalSoknadNAV?.metadata } returns "some other id"
-        every { mockDigisosSak.originalSoknadNAV?.timestampSendt } returns tidspunkt_soknad
-        every { mockDigisosSak.originalSoknadNAV?.navEksternRefId } returns null
-        every { mockDigisosSak.originalSoknadNAV?.soknadDokument?.dokumentlagerDokumentId } returns null
-        every { mockJsonSoknad.mottaker.navEnhetsnavn } returns soknadsmottaker
-        every { mockJsonSoknad.mottaker.enhetsnummer } returns enhetsnr
-        every { mockDigisosSak.ettersendtInfoNAV } returns null
-        coEvery { innsynService.hentOriginalSoknad(any()) } returns mockJsonSoknad
-        coEvery { norgClient.hentNavEnhet(enhetsnr) } returns mockNavEnhet
-
         resetHendelser()
     }
 
     @Test
     fun `vedtakFattet ETTER saksStatus - sak ferdigbehandlet med tittel`() =
         runTest(timeout = 5.seconds) {
+            val digisosSak = mockDigisosSak()
             coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
                 JsonDigisosSoker()
                     .withAvsender(avsender)
@@ -69,24 +45,26 @@ internal class VedtakFattetTest {
                             SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_4),
                         ),
                     )
+            coEvery { innsynService.hentOriginalSoknad(any()) } returns null
             coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            val response = service.createModel(digisosSak)
 
-            assertThat(model.saker).hasSize(1)
-            assertThat(model.saker[0].tittel).isEqualTo(TITTEL_1)
-            assertThat(model.saker[0].vedtak).hasSize(1)
+            assertThat(response.soknad.saker).hasSize(1)
+            assertThat(response.soknad.saker[0].tittel).isEqualTo(TITTEL_1)
 
-            val vedtakHendelse =
-                model.historikk.last { it.saksReferanse == REFERANSE_1 }
-            assertThat(vedtakHendelse.hendelseType).isEqualTo(HendelseTekstType.SAK_FERDIGBEHANDLET_MED_TITTEL)
-            assertThat(vedtakHendelse.tekstArgument).isEqualTo(TITTEL_1)
+            val vedtakForSak = response.soknad.vedtak.filter { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakForSak).hasSize(1)
+
+            val vedtakHendelse = response.eventsOf<VedtakFattet>().first { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakHendelse.saksTittel).isEqualTo(TITTEL_1)
             assertThat(vedtakHendelse.saksReferanse).isEqualTo(REFERANSE_1)
         }
 
     @Test
-    fun `vedtakFattet UTEN saksStatus - oppretter sak med DEFAULT_SAK_TITTEL`() =
+    fun `vedtakFattet UTEN saksStatus - oppretter sak med null tittel`() =
         runTest(timeout = 5.seconds) {
+            val digisosSak = mockDigisosSak()
             coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
                 JsonDigisosSoker()
                     .withAvsender(avsender)
@@ -97,19 +75,21 @@ internal class VedtakFattetTest {
                             SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_2),
                         ),
                     )
+            coEvery { innsynService.hentOriginalSoknad(any()) } returns null
             coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            val response = service.createModel(digisosSak)
 
-            assertThat(model.saker).hasSize(1)
-            assertThat(model.saker[0].referanse).isEqualTo(REFERANSE_1)
-            assertThat(model.saker[0].tittel).isEqualTo(DEFAULT_SAK_TITTEL)
-            assertThat(model.saker[0].vedtak).hasSize(1)
+            assertThat(response.soknad.saker).hasSize(1)
+            assertThat(response.soknad.saker[0].referanse).isEqualTo(REFERANSE_1)
+            val vedtakForSak = response.soknad.vedtak.filter { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakForSak).hasSize(1)
         }
 
     @Test
-    fun `vedtakFattet ETTER saksStatus uten tittel - historikk SAK_FERDIGBEHANDLET_UTEN_TITTEL`() =
+    fun `vedtakFattet ETTER saksStatus uten tittel - VedtakFattet hendelse har null saksTittel`() =
         runTest(timeout = 5.seconds) {
+            val digisosSak = mockDigisosSak()
             coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
                 JsonDigisosSoker()
                     .withAvsender(avsender)
@@ -121,21 +101,22 @@ internal class VedtakFattetTest {
                             SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_3),
                         ),
                     )
+            coEvery { innsynService.hentOriginalSoknad(any()) } returns null
             coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            val response = service.createModel(digisosSak)
 
-            assertThat(model.saker).hasSize(1)
-            assertThat(model.saker[0].tittel).isNull()
+            assertThat(response.soknad.saker).hasSize(1)
+            assertThat(response.soknad.saker[0].tittel).isNull()
 
-            val vedtakHendelse = model.historikk.last { it.saksReferanse == REFERANSE_1 }
-            assertThat(vedtakHendelse.hendelseType).isEqualTo(HendelseTekstType.SAK_FERDIGBEHANDLET_UTEN_TITTEL)
-            assertThat(vedtakHendelse.tekstArgument).isNull()
+            val vedtakHendelse = response.eventsOf<VedtakFattet>().first { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakHendelse.saksTittel).isNull()
         }
 
     @Test
     fun `vedtakFattet med INNVILGET utfall - utfall settes korrekt`() =
         runTest(timeout = 5.seconds) {
+            val digisosSak = mockDigisosSak()
             coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
                 JsonDigisosSoker()
                     .withAvsender(avsender)
@@ -147,18 +128,23 @@ internal class VedtakFattetTest {
                             SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_3),
                         ),
                     )
+            coEvery { innsynService.hentOriginalSoknad(any()) } returns null
             coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            val response = service.createModel(digisosSak)
 
-            assertThat(model.saker[0].vedtak).hasSize(1)
-            assertThat(model.saker[0].vedtak[0].utfall).isEqualTo(UtfallVedtak.INNVILGET)
-            assertThat(model.saker[0].vedtak[0].id).isEqualTo(DOKUMENTLAGERID_1)
+            val vedtakForSak = response.soknad.vedtak.filter { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakForSak).hasSize(1)
+            assertThat(vedtakForSak[0].utfall).isEqualTo(UtfallVedtak.INNVILGET)
+            val ref = vedtakForSak[0].referanse
+            assertThat(ref).isInstanceOf(DokumentRef.Dokumentlager::class.java)
+            assertThat((ref as DokumentRef.Dokumentlager).id).isEqualTo(DOKUMENTLAGERID_1)
         }
 
     @Test
     fun `vedtakFattet med AVSLATT utfall - utfall settes korrekt`() =
         runTest(timeout = 5.seconds) {
+            val digisosSak = mockDigisosSak()
             coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
                 JsonDigisosSoker()
                     .withAvsender(avsender)
@@ -170,17 +156,22 @@ internal class VedtakFattetTest {
                             SAK1_VEDTAK_FATTET_AVSLATT.withHendelsestidspunkt(tidspunkt_3),
                         ),
                     )
+            coEvery { innsynService.hentOriginalSoknad(any()) } returns null
             coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            val response = service.createModel(digisosSak)
 
-            assertThat(model.saker[0].vedtak[0].utfall).isEqualTo(UtfallVedtak.AVSLATT)
-            assertThat(model.saker[0].vedtak[0].id).isEqualTo(DOKUMENTLAGERID_2)
+            val vedtakForSak = response.soknad.vedtak.filter { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakForSak[0].utfall).isEqualTo(UtfallVedtak.AVSLATT)
+            val ref = vedtakForSak[0].referanse
+            assertThat(ref).isInstanceOf(DokumentRef.Dokumentlager::class.java)
+            assertThat((ref as DokumentRef.Dokumentlager).id).isEqualTo(DOKUMENTLAGERID_2)
         }
 
     @Test
     fun `vedtakFattet uten utfall - utfall er null`() =
         runTest(timeout = 5.seconds) {
+            val digisosSak = mockDigisosSak()
             coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
                 JsonDigisosSoker()
                     .withAvsender(avsender)
@@ -192,16 +183,19 @@ internal class VedtakFattetTest {
                             SAK1_VEDTAK_FATTET_UTEN_UTFALL.withHendelsestidspunkt(tidspunkt_3),
                         ),
                     )
+            coEvery { innsynService.hentOriginalSoknad(any()) } returns null
             coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            val response = service.createModel(digisosSak)
 
-            assertThat(model.saker[0].vedtak[0].utfall).isNull()
+            val vedtakForSak = response.soknad.vedtak.filter { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakForSak[0].utfall).isNull()
         }
 
     @Test
-    fun `vedtakFattet med SvarUt referanse - id er SVARUTID`() =
+    fun `vedtakFattet med SvarUt referanse - referanse er SvarUt`() =
         runTest(timeout = 5.seconds) {
+            val digisosSak = mockDigisosSak()
             coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
                 JsonDigisosSoker()
                     .withAvsender(avsender)
@@ -213,18 +207,23 @@ internal class VedtakFattetTest {
                             SAK2_VEDTAK_FATTET.withHendelsestidspunkt(tidspunkt_3),
                         ),
                     )
+            coEvery { innsynService.hentOriginalSoknad(any()) } returns null
             coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            val response = service.createModel(digisosSak)
 
-            assertThat(model.saker).hasSize(1)
-            assertThat(model.saker[0].vedtak).hasSize(1)
-            assertThat(model.saker[0].vedtak[0].id).isEqualTo(SVARUTID)
+            assertThat(response.soknad.saker).hasSize(1)
+            val vedtakForSak = response.soknad.vedtak.filter { it.saksReferanse == REFERANSE_2 }
+            assertThat(vedtakForSak).hasSize(1)
+            val ref = vedtakForSak[0].referanse
+            assertThat(ref).isInstanceOf(DokumentRef.SvarUt::class.java)
+            assertThat((ref as DokumentRef.SvarUt).id).isEqualTo(SVARUTID)
         }
 
     @Test
-    fun `vedtakFattet historikk inneholder url med VIS_BREVET_LENKETEKST`() =
+    fun `vedtakFattet VedtakFattet-hendelse har dokumentRef`() =
         runTest(timeout = 5.seconds) {
+            val digisosSak = mockDigisosSak()
             coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
                 JsonDigisosSoker()
                     .withAvsender(avsender)
@@ -236,19 +235,20 @@ internal class VedtakFattetTest {
                             SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_3),
                         ),
                     )
+            coEvery { innsynService.hentOriginalSoknad(any()) } returns null
             coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            val response = service.createModel(digisosSak)
 
-            val vedtakHendelse = model.historikk.last { it.saksReferanse == REFERANSE_1 }
-            assertThat(vedtakHendelse.url).isNotNull()
-            assertThat(vedtakHendelse.url!!.linkTekst).isEqualTo(HendelseTekstType.VIS_BREVET_LENKETEKST)
-            assertThat(vedtakHendelse.url!!.link).isNotNull()
+            val vedtakHendelse = response.eventsOf<VedtakFattet>().first { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakHendelse.vedtakRef).isInstanceOf(DokumentRef.Dokumentlager::class.java)
+            assertThat((vedtakHendelse.vedtakRef as DokumentRef.Dokumentlager).id).isEqualTo(DOKUMENTLAGERID_1)
         }
 
     @Test
     fun `to vedtakFattet for same sak - begge vedtak legges til`() =
         runTest(timeout = 5.seconds) {
+            val digisosSak = mockDigisosSak()
             coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
                 JsonDigisosSoker()
                     .withAvsender(avsender)
@@ -261,39 +261,18 @@ internal class VedtakFattetTest {
                             SAK1_VEDTAK_FATTET_AVSLATT.withHendelsestidspunkt(tidspunkt_4),
                         ),
                     )
+            coEvery { innsynService.hentOriginalSoknad(any()) } returns null
             coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
 
-            val model = service.createModel(mockDigisosSak)
+            val response = service.createModel(digisosSak)
 
-            assertThat(model.saker).hasSize(1)
-            assertThat(model.saker[0].vedtak).hasSize(2)
-            assertThat(model.saker[0].vedtak[0].utfall).isEqualTo(UtfallVedtak.INNVILGET)
-            assertThat(model.saker[0].vedtak[1].utfall).isEqualTo(UtfallVedtak.AVSLATT)
+            assertThat(response.soknad.saker).hasSize(1)
+            val vedtakForSak = response.soknad.vedtak.filter { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakForSak).hasSize(2)
+            assertThat(vedtakForSak[0].utfall).isEqualTo(UtfallVedtak.INNVILGET)
+            assertThat(vedtakForSak[1].utfall).isEqualTo(UtfallVedtak.AVSLATT)
 
-            val vedtakHendelser = model.historikk.filter { it.saksReferanse == REFERANSE_1 }
-            assertThat(vedtakHendelser).hasSize(3) // SAK_UNDER_BEHANDLING_MED_TITTEL + to SAK_FERDIGBEHANDLET
-        }
-
-    @Test
-    fun `vedtakFattet legger til vedtaksfilUrl pa vedtaket`() =
-        runTest(timeout = 5.seconds) {
-            every { clientProperties.fiksDokumentlagerEndpointUrl } returns "https://fiks.no"
-
-            coEvery { innsynService.hentJsonDigisosSoker(any()) } returns
-                JsonDigisosSoker()
-                    .withAvsender(avsender)
-                    .withVersion("123")
-                    .withHendelser(
-                        listOf(
-                            SOKNADS_STATUS_MOTTATT.withHendelsestidspunkt(tidspunkt_1),
-                            SAK1_VEDTAK_FATTET_INNVILGET.withHendelsestidspunkt(tidspunkt_2),
-                        ),
-                    )
-            coEvery { vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, any()) } returns emptyList()
-
-            val model = service.createModel(mockDigisosSak)
-
-            val vedtak = model.saker[0].vedtak[0]
-            assertThat(vedtak.vedtaksFilUrl).contains(DOKUMENTLAGERID_1)
+            val vedtakHendelser = response.eventsOf<VedtakFattet>().filter { it.saksReferanse == REFERANSE_1 }
+            assertThat(vedtakHendelser).hasSize(2)
         }
 }

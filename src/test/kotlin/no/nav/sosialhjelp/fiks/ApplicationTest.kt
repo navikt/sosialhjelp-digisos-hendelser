@@ -28,4 +28,19 @@ class ApplicationTest {
             val response = client.get("/internal/health")
             assertEquals(HttpStatusCode.OK, response.status)
         }
+
+    @Test
+    fun `metrics endpoint returns 200 OK`() =
+        testApplication {
+            application {
+                configureMonitoring(testMeterRegistry)
+                configureSerialization()
+                configureStatusPages()
+                routing {
+                    get("/internal/metrics") { call.respondText(testMeterRegistry.scrape()) }
+                }
+            }
+            val response = client.get("/internal/metrics")
+            assertEquals(HttpStatusCode.OK, response.status)
+        }
 }

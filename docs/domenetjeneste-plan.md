@@ -520,7 +520,38 @@ Never include upstream error text in the response body.
 
 ---
 
-## 15. Still open
+## 16. NAIS secrets required
+
+Two secrets must exist before deploying:
+
+### `fiks-integrasjon-secret` (already exists in both envs)
+```
+FIKS_INTEGRASJON_ID=<uuid>
+FIKS_INTEGRASJON_PASSORD=<secret>
+```
+
+### `fiks-service-secrets` (new — create via nais console or kubectl)
+```
+PDL_SCOPE=<e.g. prod-fss:pdl:pdl-api>
+SKJERMEDE_PERSONER_SCOPE=<e.g. api://prod-gcp.nom.skjermede-personer-pip/.default>
+VALKEY_USERNAME=<from nais valkey binding>
+VALKEY_PASSWORD=<from nais valkey binding>
+CALLER_CONFIG=<client_id:appNavn:behandlingsnummer,...>
+```
+
+`CALLER_CONFIG` format: comma-separated entries of `clientId:appNavn:behandlingsnummer1+behandlingsnummer2`.
+
+Example (dev):
+```
+CALLER_CONFIG=<innsyn-api-client-id>:sosialhjelp-innsyn-api-dev:B478,<modia-api-client-id>:sosialhjelp-modia-api-dev:B117
+```
+
+Find the client IDs:
+- `AZURE_APP_CLIENT_ID` in the running innsyn-api/modia-api pods (for the OBO path)
+- `TOKEN_X_CLIENT_ID` in the running innsyn-api pod (for the citizen path)
+
+Optionally set `PDL_USE_M2M_TOKEN=true` in the nais env if the S1 spike shows TokenX exchange is rejected.
+
 
 Nothing blocking. The only unresolved item is the **S1 spike outcome**, which decides the
 `PdlTokenStrategy` implementation and whether personvern sign-off is needed for a machine-token

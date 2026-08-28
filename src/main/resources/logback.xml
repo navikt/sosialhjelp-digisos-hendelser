@@ -1,7 +1,26 @@
 <configuration>
+    <!-- Normal application log to STDOUT (picked up by nais logging infrastructure) -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
     </appender>
+
+    <!-- Audit log (sporingslogg) → syslog TCP to audit.nais:6514 in production.
+         In local/dev (no audit.nais available) the appender will fail silently and
+         the sporingslogg logger falls through to STDOUT via the root logger.
+         Set additivity="false" to prevent audit lines from appearing in the normal log. -->
+    <appender name="SYSLOG_AUDIT" class="ch.qos.logback.classic.net.SyslogAppender">
+        <syslogHost>audit.nais</syslogHost>
+        <port>6514</port>
+        <facility>AUTH</facility>
+        <suffixPattern>%msg</suffixPattern>
+        <maxMessageLength>128000</maxMessageLength>
+    </appender>
+
+    <logger name="sporingslogg" level="INFO" additivity="false">
+        <appender-ref ref="SYSLOG_AUDIT"/>
+        <!-- Also write to STDOUT in non-prod so local testing can see audit entries -->
+        <appender-ref ref="STDOUT"/>
+    </logger>
 
     <root level="INFO">
         <appender-ref ref="STDOUT"/>

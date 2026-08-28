@@ -1,34 +1,40 @@
 package no.nav.sosialhjelp.fiks.event
 
-import no.nav.sbl.soknadsosialhjelp.vedlegg.JsonVedlegg
 import no.nav.sosialhjelp.api.fiks.DigisosSak
-import no.nav.sosialhjelp.fiks.domain.InternalDigisosSoker
-import no.nav.sosialhjelp.fiks.domain.Oppgave
+import no.nav.sosialhjelp.fiks.domain.Krav
+import no.nav.sosialhjelp.fiks.domain.Oppgavestatus
+import no.nav.sosialhjelp.fiks.domain.SoknadKravLagtTil
 import no.nav.sosialhjelp.fiks.utils.sha256
-import no.nav.sosialhjelp.fiks.utils.unixToLocalDateTime
+import no.nav.sosialhjelp.fiks.utils.unixToInstant
 import no.nav.sosialhjelp.fiks.vedlegg.VEDLEGG_KREVES_STATUS
 import no.nav.sosialhjelp.fiks.vedlegg.VedleggService
 
-suspend fun InternalDigisosSoker.applySoknadKrav(
+internal suspend fun FoldAccumulator.applySoknadKrav(
     digisosSak: DigisosSak,
     vedleggService: VedleggService,
     timestampSendt: Long,
 ) {
     val vedleggKreves = vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS, digisosSak)
+    val tidspunkt = unixToInstant(timestampSendt)
 
-    oppgaver =
+    val nyeKrav =
         vedleggKreves
             .filterNot { it.type == "annet" && it.tilleggsinfo == "annet" }
             .map {
-                Oppgave(
-                    sha256(timestampSendt.toString()),
-                    it.type,
-                    it.tilleggsinfo,
-                    JsonVedlegg.HendelseType.SOKNAD,
-                    it.hendelseReferanse,
-                    null,
-                    unixToLocalDateTime(timestampSendt),
-                    false,
+                Krav.SoknadVedleggKreves(
+                    referanse = sha256(timestampSendt.toString()),
+                    tittel = it.type,
+                    beskrivelse = it.tilleggsinfo,
+                    status = Oppgavestatus.RELEVANT,
+                    frist = null,
+                    gruppeId = null,
+                    tidspunktForKrav = tidspunkt,
                 )
-            }.toMutableList()
+            }
+
+    krav.addAll(nyeKrav)
+
+    if (nyeKrav.isNotEmpty()) {
+        hendelser.add(SoknadKravLagtTil(tidspunkt = tidspunkt, antallKrav = nyeKrav.size))
+    }
 }

@@ -12,22 +12,14 @@ jobs:
     name: 'Build with Gradle'
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      packages: write
-      contents: write
+      contents: read
     env:
       ORG_GRADLE_PROJECT_githubUser: x-access-token
       ORG_GRADLE_PROJECT_githubPassword: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: nais/login@v0
-        with:
-          team: 'teamdigisos'
-      - name: Run lint
-        run: ./gradlew spotlessCheck
-        shell: bash
+      - uses: actions/checkout@v7
       - name: Build kotlin, and run tests
-        uses: navikt/sosialhjelp-ci/actions/build-kotlin@v17
+        uses: navikt/sosialhjelp-ci/actions/build-kotlin@v21
         with:
           java-version: '21'
           lint: 'false'

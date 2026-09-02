@@ -81,35 +81,10 @@ publishing {
 }
 
 // --- npm (GitHub Packages) publishing ---
-// GitHub Packages requires npm package names to be scoped to the org, while the JS
-// distribution produced by `binaries.library()` uses the unscoped `rootProject.name`.
-// These tasks stage the distribution output under a scoped name + the project's version
-// (kept in sync with the Maven publications above) and publish it with `npm publish`.
-val npmPackageScope = "@navikt"
-val npmPublishStagingDir = layout.buildDirectory.dir("npmPublish")
-
-val preparePublishableNpmPackage by tasks.registering(Copy::class) {
-    dependsOn("jsNodeProductionLibraryDistribution")
-    from(layout.buildDirectory.dir("dist/js/productionLibrary"))
-    into(npmPublishStagingDir)
-    doLast {
-        val packageJsonFile = npmPublishStagingDir.get().file("package.json").asFile
-        val json = groovy.json.JsonSlurper().parse(packageJsonFile) as MutableMap<String, Any?>
-        json["name"] = "$npmPackageScope/${rootProject.name}"
-        json["version"] = project.version.toString()
-        packageJsonFile.writeText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)))
-    }
-}
-
-val publishNpmToGitHubPackages by tasks.registering(Exec::class) {
-    dependsOn(preparePublishableNpmPackage)
-    workingDir(npmPublishStagingDir)
-    commandLine("npm", "publish", "--registry=https://npm.pkg.github.com")
-}
-
-tasks.named("publish") {
-    dependsOn(publishNpmToGitHubPackages)
-}
+// Kotlin/JS has no first-class npm publishing support, so this is handled directly in
+// the release GitHub Actions workflow (.github/workflows/publish_release.yml) via
+// `npm pkg set` + `npm publish` against the `jsNodeProductionLibraryDistribution` output,
+// using the same version passed to this build (`-Pversion=`) to stay in sync with Maven.
 
 tasks.withType<Test> {
     useJUnitPlatform()

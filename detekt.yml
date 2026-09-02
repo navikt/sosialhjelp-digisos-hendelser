@@ -1,0 +1,90 @@
+# detekt configuration for sosialhjelp-fiks-service
+#
+# Full ruleset active (buildUponDefaultConfig = true).
+# Rules are disabled here only where the default is not appropriate for this codebase,
+# with an explanation for each.
+
+build:
+  maxIssues: 0
+
+config:
+  validation: true
+  warningsAsErrors: false
+
+comments:
+  # We don't mandate KDoc on all public members — code should be self-documenting.
+  active: false
+
+complexity:
+  active: true
+  TooManyFunctions:
+    # Application.module() and the route files legitimately have many functions;
+    # extracting them further would harm readability more than it helps.
+    active: false
+  LongMethod:
+    # Application.module() is a DI wiring function — long by design, not by accident.
+    active: false
+  CyclomaticComplexMethod:
+    # EventService.createModel and route handlers branch on caller type intentionally.
+    active: false
+  LongParameterList:
+    # soknaderRoutes() takes 6 injected dependencies. Introducing a wrapper object
+    # to pass them as one parameter adds indirection without architectural benefit.
+    # AuditLogger.buildCef() and mockDigisosSak() in tests similarly have many
+    # required fields.
+    active: false
+
+exceptions:
+  active: true
+  TooGenericExceptionCaught:
+    # Network/serialization errors from Fiks, PDL, Valkey, Texas come in many types.
+    # We catch Exception deliberately to fail-closed with a single handler. This is
+    # an explicit design decision documented in docs/domenetjeneste-plan.md §5.
+    active: false
+  SwallowedException:
+    # Same rationale: we log and return null/fallback rather than rethrowing.
+    active: false
+  InstanceOfCheckForException:
+    # The `e is CancellationException` + ensureActive() pattern is the canonical
+    # coroutines way to re-throw cancellation without catching it.
+    active: false
+
+naming:
+  active: true
+
+performance:
+  active: true
+
+potential-bugs:
+  active: true
+
+style:
+  active: true
+  MaxLineLength:
+    # ktlint already handles line-length formatting. Detekt's check is redundant
+    # and fires on generated/imported types with long qualified names.
+    active: false
+  MagicNumber:
+    # Port numbers, TTL values, retry counts — all intentional literals in this
+    # codebase. Extracting them to named constants adds noise without clarity.
+    active: false
+  WildcardImport:
+    # ktlint enforces no-wildcard imports already.
+    active: false
+  ThrowsCount:
+    # The FiksClient when-expressions throw different typed Fiks exceptions per
+    # HTTP status code. This is the right design; grouping into one exception type
+    # would lose information.
+    active: false
+  ReturnCount:
+    # Ktor route handlers use early return@get/post for validation. This is the
+    # standard Ktor idiom and is more readable than deeply nested if-else.
+    active: false
+  SerialVersionUIDInSerializableClass:
+    # NavEnhet implements Serializable for Lettuce caching. serialVersionUID is
+    # deliberately omitted — we invalidate the cache on deploy, not on field changes.
+    active: false
+  LoopWithTooManyJumpStatements:
+    # The multipart/mixed parser loop has multiple continues — this is the clearest
+    # way to write a streaming text parser; restructuring it would obscure the intent.
+    active: false

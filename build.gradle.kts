@@ -1,25 +1,56 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 group = "no.nav.sosialhjelp"
+// Overridable via `-Pversion=X.Y.Z` (e.g. from a CI release workflow) so that both the
+// Maven (JVM) and npm (JS) publications always share the exact same version.
+version = providers.gradleProperty("version").orNull ?: "1.0-SNAPSHOT"
 
 plugins {
-    alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.ktor)
-    alias(libs.plugins.spotless)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlin.serialization)
+    `maven-publish`
 }
 
 kotlin {
-    jvmToolchain(21)
-    compilerOptions {
-        freeCompilerArgs.add("-Xjsr305=strict")
-        jvmTarget = JvmTarget.JVM_21
+    jvm()
+    js {
+        nodejs()
+        binaries.library()
+        generateTypeScriptDefinitions()
     }
-}
 
-application {
-    mainClass.set("no.nav.sosialhjelp.fiks.ApplicationKt")
+    sourceSets {
+        commonMain {
+            dependencies {
+                implementation(libs.kotlinx.serialization.json)
+                implementation(libs.kotlinx.datetime)
+                implementation(libs.sosialhjelp.filformat.kmp)
+            }
+        }
+        commonTest {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(libs.kotlinx.coroutines.test)
+            }
+        }
+        jvmTest {
+            dependencies {
+                implementation(libs.mockk)
+                implementation(libs.assertj.core)
+            }
+        }
+
+        jsMain {
+            dependencies {
+                // Required for kotlinx-datetime's TimeZone.of("Europe/Oslo") to resolve on
+                // Kotlin/JS + Node: @js-joda/core (used internally by kotlinx-datetime on JS)
+                // ships with no IANA timezone database by default.
+                implementation(npm("@js-joda/timezone", libs.versions.js.joda.timezone.get()))
+            }
+
+        }
+    }
 }
 
 val githubUser: String? by project
@@ -36,24 +67,24 @@ repositories {
     }
 }
 
-dependencies {
-    implementation(libs.bundles.ktor.server)
-    implementation(libs.bundles.ktor.client)
-    implementation(libs.bundles.logging)
-    implementation(libs.bundles.coroutines)
-    implementation(libs.bundles.jackson)
-    implementation(libs.ktor.serialization.jackson)
-    implementation(libs.lettuce.core)
-    implementation(libs.micrometer.registry.prometheus)
-    implementation(libs.sosialhjelp.filformat)
-    implementation(libs.sosialhjelp.common.api)
-
-    testImplementation(libs.bundles.ktor.test)
-    testImplementation(libs.mockk)
-    testImplementation(libs.assertj.core)
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(kotlin("test"))
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/navikt/sosialhjelp-digisos-hendelser")
+            credentials {
+                username = githubUser
+                password = githubPassword
+            }
+        }
+    }
 }
+
+// --- npm (GitHub Packages) publishing ---
+// Kotlin/JS has no first-class npm publishing support, so this is handled directly in
+// the release GitHub Actions workflow (.github/workflows/publish_release.yml) via
+// `npm pkg set` + `npm publish` against the `jsNodeProductionLibraryDistribution` output,
+// using the same version passed to this build (`-Pversion=`) to stay in sync with Maven.
 
 tasks.withType<Test> {
     useJUnitPlatform()
@@ -63,26 +94,5 @@ tasks.withType<Test> {
         showCauses = true
         showExceptions = true
         showStackTraces = true
-    }
-}
-
-ktor {
-    fatJar {
-        archiveFileName.set("app.jar")
-    }
-}
-
-spotless {
-    format("misc") {
-        target("*.md", ".gitignore", "Dockerfile")
-        trimTrailingWhitespace()
-        leadingTabsToSpaces()
-        endWithNewline()
-    }
-    kotlin {
-        ktlint()
-    }
-    kotlinGradle {
-        ktlint()
     }
 }

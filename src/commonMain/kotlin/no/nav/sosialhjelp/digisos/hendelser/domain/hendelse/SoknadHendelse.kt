@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalJsExport::class)
+
 package no.nav.sosialhjelp.digisos.hendelser.domain.hendelse
 
 import kotlinx.datetime.Instant
@@ -8,6 +10,9 @@ import no.nav.sosialhjelp.digisos.hendelser.domain.Soknad
 import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatus
 import no.nav.sosialhjelp.digisos.hendelser.domain.UtbetalingsStatus
 import no.nav.sosialhjelp.digisos.hendelser.domain.UtfallVedtak
+import kotlin.js.ExperimentalJsExport
+import kotlin.js.JsExport
+import kotlin.js.JsName
 
 /**
  * Sealed hierarchy of typed domain events emitted during the fold of a søknad's hendelse stream.
@@ -23,87 +28,155 @@ import no.nav.sosialhjelp.digisos.hendelser.domain.UtfallVedtak
  *  - [TildeltNavKontor.erForsteTildeling] and [Soknad.erPapirsoknad] reconstruct the four
  *    SOKNAD_VIDERESENDT_* variants
  *  - [NavKontorTildeling] in [Soknad.navKontorHistorikk] gives modia the full routing history
+ *
+ * JS/TypeScript consumers discriminate with `instanceof` on the subtypes and read
+ * [tidspunktEpochMillis]; see the note in `domain/Soknad.kt` on why [tidspunkt] is hidden.
  */
+@JsExport
 sealed interface SoknadHendelse {
+    @JsExport.Ignore
     val tidspunkt: Instant
+
+    val tidspunktEpochMillis: Double
 }
 
-data class SoknadSendt(
-    override val tidspunkt: Instant,
-    val mottaker: NavEnhet?,
-    val soknadDokumentRef: DokumentRef?,
-) : SoknadHendelse
+@JsExport
+class SoknadSendt
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val mottaker: NavEnhet?,
+        val soknadDokumentRef: DokumentRef?,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
-data class SoknadsStatusEndret(
-    override val tidspunkt: Instant,
-    val status: SoknadsStatus,
-    /**
-     * The name of the Nav-enhet that received the application at the time the MOTTATT
-     * hendelse was processed, stripped of " kommune" suffix.
-     * null means the name was not available.
-     * Used by innsyn to choose SOKNAD_MOTTATT_MED_KOMMUNENAVN vs SOKNAD_MOTTATT_UTEN_KOMMUNENAVN.
-     */
-    val mottakerNavn: String?,
-) : SoknadHendelse
+@JsExport
+class SoknadsStatusEndret
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val status: SoknadsStatus,
+        /**
+         * The name of the Nav-enhet that received the application at the time the MOTTATT
+         * hendelse was processed, stripped of " kommune" suffix.
+         * null means the name was not available.
+         * Used by innsyn to choose SOKNAD_MOTTATT_MED_KOMMUNENAVN vs SOKNAD_MOTTATT_UTEN_KOMMUNENAVN.
+         */
+        val mottakerNavn: String?,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
-data class TildeltNavKontor(
-    override val tidspunkt: Instant,
-    val fraEnhetsnummer: String?,
-    val tilEnhetsnummer: String,
-    /**
-     * true = the first tildeling that differs from the original mottaker.
-     * Used by innsyn to choose SOKNAD_VIDERESENDT_MED_NAVKONTOR vs SOKNAD_VIDERESENDT_UTEN_NAVKONTOR.
-     */
-    val erForsteTildeling: Boolean,
-) : SoknadHendelse
+@JsExport
+class TildeltNavKontor
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val fraEnhetsnummer: String?,
+        val tilEnhetsnummer: String,
+        /**
+         * true = the first tildeling that differs from the original mottaker.
+         * Used by innsyn to choose SOKNAD_VIDERESENDT_MED_NAVKONTOR vs SOKNAD_VIDERESENDT_UTEN_NAVKONTOR.
+         */
+        val erForsteTildeling: Boolean,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
-data class SaksStatusEndret(
-    override val tidspunkt: Instant,
-    val saksReferanse: String,
-    val tittel: String?,
-    val status: SaksStatus,
-    val erNyeSak: Boolean,
-) : SoknadHendelse
+@JsExport
+class SaksStatusEndret
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val saksReferanse: String,
+        val tittel: String?,
+        val status: SaksStatus,
+        val erNyeSak: Boolean,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
-data class VedtakFattet(
-    override val tidspunkt: Instant,
-    val saksReferanse: String?,
-    val saksTittel: String?,
-    val utfall: UtfallVedtak?,
-    val vedtakRef: DokumentRef,
-) : SoknadHendelse
+@JsExport
+class VedtakFattet
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val saksReferanse: String?,
+        val saksTittel: String?,
+        val utfall: UtfallVedtak?,
+        val vedtakRef: DokumentRef,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
-data class DokumentasjonEtterspurt(
-    override val tidspunkt: Instant,
-    val harDokumenter: Boolean,
-    val forvaltningsbrevRef: DokumentRef?,
-) : SoknadHendelse
+/**
+ * Exported to JS as `DokumentasjonEtterspurtHendelse` to avoid clashing with the domain type of the
+ * same name in `domain/Soknad.kt` — ES module exports are flat, so Kotlin packages don't separate them.
+ */
+@JsExport
+@JsName("DokumentasjonEtterspurtHendelse")
+class DokumentasjonEtterspurt
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val harDokumenter: Boolean,
+        val forvaltningsbrevRef: DokumentRef?,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
-data class ForelopigSvarMottatt(
-    override val tidspunkt: Instant,
-    val brevRef: DokumentRef,
-) : SoknadHendelse
+@JsExport
+class ForelopigSvarMottatt
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val brevRef: DokumentRef,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
-data class UtbetalingEndret(
-    override val tidspunkt: Instant,
-    val utbetalingsReferanse: String,
-    val status: UtbetalingsStatus,
-) : SoknadHendelse
+@JsExport
+class UtbetalingEndret
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val utbetalingsReferanse: String,
+        val status: UtbetalingsStatus,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
-data class KravEndret(
-    override val tidspunkt: Instant,
-    val kravReferanse: String,
-    val kravType: KravType,
-) : SoknadHendelse
+@JsExport
+class KravEndret
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val kravReferanse: String,
+        val kravType: KravType,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
+@JsExport
 enum class KravType { DOKUMENTASJONKRAV, VILKAR }
 
-data class SoknadKravLagtTil(
-    override val tidspunkt: Instant,
-    val antallKrav: Int,
-) : SoknadHendelse
+@JsExport
+class SoknadKravLagtTil
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+        val antallKrav: Int,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }
 
 /** Fired when a DokumentasjonEtterspurt empties the oppgave-list and status != BEHANDLES_IKKE. */
-data class OppgaverTrukket(
-    override val tidspunkt: Instant,
-) : SoknadHendelse
+@JsExport
+class OppgaverTrukket
+    @JsExport.Ignore
+    constructor(
+        @property:JsExport.Ignore override val tidspunkt: Instant,
+    ) : SoknadHendelse {
+        override val tidspunktEpochMillis: Double get() = tidspunkt.toEpochMilliseconds().toDouble()
+    }

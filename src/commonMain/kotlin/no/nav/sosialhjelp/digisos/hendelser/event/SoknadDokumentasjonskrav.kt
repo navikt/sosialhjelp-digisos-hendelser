@@ -5,21 +5,21 @@ import no.nav.sosialhjelp.digisos.hendelser.domain.Oppgavestatus
 import no.nav.sosialhjelp.digisos.hendelser.domain.gruppeIdForFrist
 import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.SoknadKravLagtTil
 import no.nav.sosialhjelp.digisos.hendelser.domain.sha256
-import no.nav.sosialhjelp.digisos.hendelser.domain.unixToInstant
+import no.nav.sosialhjelp.filformat.vedlegg.Vedlegg
+import kotlinx.datetime.Instant
 
-internal suspend fun FoldAccumulator.applySoknadKrav(
-    vedleggService: VedleggService,
-    timestampSendt: Long,
+internal fun FoldAccumulator.applySoknadKrav(
+    paakrevdeVedlegg: List<Vedlegg>,
+    timestampSendt: Instant,
 ) {
-    val tidspunkt = unixToInstant(timestampSendt)
-    val vedleggKreves = vedleggService.hentSoknadVedleggMedStatus(VEDLEGG_KREVES_STATUS)
+    val tidspunkt = timestampSendt
 
     val nyeKrav =
-        vedleggKreves
+        paakrevdeVedlegg
             .filterNot { it.type == "annet" && it.tilleggsinfo == "annet" }
             .map {
                 DokumentasjonEtterspurt(
-                    referanse = sha256(timestampSendt.toString()),
+                    referanse = sha256(timestampSendt.toEpochMilliseconds().toString()),
                     tittel = it.type,
                     beskrivelse = it.tilleggsinfo,
                     status = Oppgavestatus.RELEVANT,

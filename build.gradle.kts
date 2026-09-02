@@ -86,6 +86,41 @@ publishing {
 // `npm pkg set` + `npm publish` against the `jsNodeProductionLibraryDistribution` output,
 // using the same version passed to this build (`-Pversion=`) to stay in sync with Maven.
 
+// Kotlin/JS exports nothing unless it is annotated `@JsExport`, and dropping those annotations
+// fails silently: the build still succeeds and simply publishes an npm package with an empty
+// `.d.ts` and a bundle with no exports. That shipped once already. Kotlin tests in `jsTest` do not
+// catch it, since Kotlin can call non-exported declarations perfectly well — so assert on the
+// generated TypeScript declarations instead.
+val verifyJsExports by tasks.registering {
+    val dts =
+        layout.buildDirectory
+            .file("dist/js/productionLibrary/${rootProject.name}.d.ts")
+    dependsOn(tasks.named("jsNodeProductionLibraryDistribution"))
+    inputs.file(dts)
+
+    doLast {
+        val file = dts.get().asFile
+        val text = file.readText()
+        val required =
+            listOf(
+                "function foldJson(",
+                "class SoknadMetadata",
+                "static create(",
+                "class Soknad {",
+                "class FoldResult",
+                "interface SoknadHendelse",
+                "abstract class SoknadsStatus",
+            )
+        val missing = required.filterNot { it in text }
+        check(missing.isEmpty()) {
+            "Generated TypeScript declarations are missing: $missing\n" +
+                "Most likely an @JsExport annotation was dropped. See ${file.absolutePath}"
+        }
+    }
+}
+
+tasks.named("check") { dependsOn(verifyJsExports) }
+
 tasks.withType<Test> {
     useJUnitPlatform()
     testLogging {

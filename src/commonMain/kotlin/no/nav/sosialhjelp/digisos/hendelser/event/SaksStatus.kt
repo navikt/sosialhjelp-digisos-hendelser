@@ -1,7 +1,7 @@
 package no.nav.sosialhjelp.digisos.hendelser.event
 
 import no.nav.sosialhjelp.digisos.hendelser.domain.SaksStatus
-import no.nav.sosialhjelp.digisos.hendelser.domain.SaksStatusEndret
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.SaksStatusEndret
 import no.nav.sosialhjelp.digisos.hendelser.domain.toInstant
 import no.nav.sosialhjelp.filformat.digisos.soker.SaksStatus as FilformatSaksStatus
 

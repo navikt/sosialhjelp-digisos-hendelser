@@ -3,9 +3,10 @@ package no.nav.sosialhjelp.digisos.hendelser.fold
 import kotlinx.datetime.Instant
 import no.nav.sosialhjelp.digisos.hendelser.domain.DokumentRef
 import no.nav.sosialhjelp.digisos.hendelser.domain.Fagsystem
-import no.nav.sosialhjelp.digisos.hendelser.domain.FoldResult
 import no.nav.sosialhjelp.digisos.hendelser.domain.NavEnhet
-import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadSendt
+import no.nav.sosialhjelp.digisos.hendelser.domain.Soknad
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.SoknadHendelse
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.SoknadSendt
 import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatus as DomainSoknadsStatus
 import no.nav.sosialhjelp.digisos.hendelser.domain.toInstant
 import no.nav.sosialhjelp.digisos.hendelser.domain.unixToInstant
@@ -25,6 +26,17 @@ import no.nav.sosialhjelp.filformat.digisos.soker.UkjentHendelse
 import no.nav.sosialhjelp.filformat.digisos.soker.Utbetaling
 import no.nav.sosialhjelp.filformat.digisos.soker.VedtakFattet
 import no.nav.sosialhjelp.filformat.digisos.soker.Vilkar
+
+/**
+ * Combined output of the fold.
+ * Both the folded aggregate state and the ordered typed event list are included
+ * so consumers can use either or both without reimplementing the fold themselves.
+ */
+data class FoldResult(
+    val soknad: Soknad,
+    /** Ordered (ascending by tidspunkt) typed domain events emitted during the fold. */
+    val hendelser: List<SoknadHendelse>,
+)
 
 /**
  * Metadata about the søknad that is not part of the hendelse stream.

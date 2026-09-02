@@ -1,6 +1,6 @@
 package no.nav.sosialhjelp.digisos.hendelser.event
 
-import no.nav.sosialhjelp.digisos.hendelser.domain.UtbetalingEndret
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.UtbetalingEndret
 import no.nav.sosialhjelp.digisos.hendelser.domain.UtbetalingsStatus
 import no.nav.sosialhjelp.filformat.digisos.soker.Utbetaling as FilformatUtbetaling
 import kotlin.test.Test
@@ -15,8 +15,8 @@ class UtbetalingTest {
         acc.apply(utbetaling(UTBETALING_REF_1, FilformatUtbetaling.Status.UTBETALT, belop = 5000.0))
 
         assertEquals(1, acc.utbetalinger.size)
-        assertEquals("5000.0", acc.utbetalinger[0].belopString)
-        assertEquals(UtbetalingsStatus.UTBETALT, acc.utbetalinger[0].status)
+        assertEquals("5000.0", acc.utbetalinger[0].utbetaling.belopString)
+        assertEquals(UtbetalingsStatus.UTBETALT, acc.utbetalinger[0].utbetaling.status)
         assertEquals(1, acc.hendelser.filterIsInstance<UtbetalingEndret>().size)
     }
 
@@ -27,7 +27,7 @@ class UtbetalingTest {
         acc.apply(utbetaling(UTBETALING_REF_1, FilformatUtbetaling.Status.UTBETALT, belop = 1000.0, tidspunkt = tidspunkt_2))
 
         assertEquals(1, acc.utbetalinger.size)
-        assertEquals(UtbetalingsStatus.UTBETALT, acc.utbetalinger[0].status)
+        assertEquals(UtbetalingsStatus.UTBETALT, acc.utbetalinger[0].utbetaling.status)
         assertEquals(2, acc.hendelser.filterIsInstance<UtbetalingEndret>().size)
     }
 
@@ -43,8 +43,8 @@ class UtbetalingTest {
             ),
         )
 
-        assertTrue(acc.utbetalinger[0].annenMottaker)
-        assertNull(acc.utbetalinger[0].kontonummer)
+        assertTrue(acc.utbetalinger[0].utbetaling.annenMottaker)
+        assertNull(acc.utbetalinger[0].utbetaling.kontonummer)
     }
 
     @Test
@@ -59,8 +59,8 @@ class UtbetalingTest {
             ),
         )
 
-        assertEquals(false, acc.utbetalinger[0].annenMottaker)
-        assertEquals("12345678901", acc.utbetalinger[0].kontonummer)
+        assertEquals(false, acc.utbetalinger[0].utbetaling.annenMottaker)
+        assertEquals("12345678901", acc.utbetalinger[0].utbetaling.kontonummer)
     }
 
     @Test
@@ -68,10 +68,10 @@ class UtbetalingTest {
         val acc = testAccumulator()
         acc.apply(utbetaling(UTBETALING_REF_1, FilformatUtbetaling.Status.PLANLAGT_UTBETALING))
         acc.apply(utbetaling(UTBETALING_REF_1, FilformatUtbetaling.Status.STOPPET, tidspunkt = tidspunkt_2))
-        val stoppetDato = acc.utbetalinger[0].stoppetDato
+        val stoppetDato = acc.utbetalinger[0].utbetaling.stoppetDato
 
         acc.apply(utbetaling(UTBETALING_REF_1, FilformatUtbetaling.Status.STOPPET, tidspunkt = tidspunkt_3))
         // stoppetDato should be carried forward (not re-set)
-        assertEquals(stoppetDato, acc.utbetalinger[0].stoppetDato)
+        assertEquals(stoppetDato, acc.utbetalinger[0].utbetaling.stoppetDato)
     }
 }

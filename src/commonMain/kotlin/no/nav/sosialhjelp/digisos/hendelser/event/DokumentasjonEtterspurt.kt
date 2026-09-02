@@ -1,22 +1,25 @@
 package no.nav.sosialhjelp.digisos.hendelser.event
 
+import no.nav.sosialhjelp.digisos.hendelser.domain.DatertDokument
 import no.nav.sosialhjelp.digisos.hendelser.domain.DokumentRef
 import no.nav.sosialhjelp.digisos.hendelser.domain.DokumentasjonEtterspurt
-import no.nav.sosialhjelp.digisos.hendelser.domain.Forvaltningsbrev
-import no.nav.sosialhjelp.digisos.hendelser.domain.Krav
 import no.nav.sosialhjelp.digisos.hendelser.domain.Oppgavestatus
-import no.nav.sosialhjelp.digisos.hendelser.domain.OppgaverTrukket
 import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatus
 import no.nav.sosialhjelp.digisos.hendelser.domain.gruppeIdForFrist
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.OppgaverTrukket
 import no.nav.sosialhjelp.digisos.hendelser.domain.sha256
 import no.nav.sosialhjelp.digisos.hendelser.domain.toInstant
 import no.nav.sosialhjelp.digisos.hendelser.domain.toLocalDate
 import no.nav.sosialhjelp.filformat.digisos.soker.DokumentlagerFilreferanse
 import no.nav.sosialhjelp.filformat.digisos.soker.SvarUtFilreferanse
 import no.nav.sosialhjelp.filformat.digisos.soker.DokumentasjonEtterspurt as FilformatDokumentasjonEtterspurt
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.DokumentasjonEtterspurt as DokumentasjonEtterspurtHendelse
 
 internal fun FoldAccumulator.apply(hendelse: FilformatDokumentasjonEtterspurt) {
-    val prevCount = krav.count { it is Krav.DokumentasjonEtterspurt }
+    val prevCount =
+        dokumentasjonEtterspurt.count {
+            it.kilde == DokumentasjonEtterspurt.Kilde.DOKUMENTASJON_ETTERSPURT
+        }
     val tidspunkt = hendelse.hendelsestidspunkt.toInstant()
 
     val forvaltningsbrevRef: DokumentRef? =
@@ -29,15 +32,15 @@ internal fun FoldAccumulator.apply(hendelse: FilformatDokumentasjonEtterspurt) {
         }
 
     if (forvaltningsbrevRef != null) {
-        forvaltningsbrev.add(Forvaltningsbrev(dokumentRef = forvaltningsbrevRef, tidspunkt = tidspunkt))
+        forvaltningsbrev.add(DatertDokument(dokumentRef = forvaltningsbrevRef, tidspunkt = tidspunkt))
     }
 
-    clearOppgaverKrav()
+    clearDokumentasjonEtterspurt()
 
     val nyeKrav =
         hendelse.dokumenter.map { dok ->
             val frist = dok.innsendelsesfrist.toLocalDate()
-            Krav.DokumentasjonEtterspurt(
+            DokumentasjonEtterspurt(
                 referanse = sha256(dok.innsendelsesfrist),
                 tittel = dok.dokumenttype,
                 beskrivelse = dok.tilleggsinformasjon,
@@ -46,13 +49,14 @@ internal fun FoldAccumulator.apply(hendelse: FilformatDokumentasjonEtterspurt) {
                 gruppeId = gruppeIdForFrist(frist),
                 tidspunktForKrav = tidspunkt,
                 forvaltningsbrevRef = forvaltningsbrevRef,
+                kilde = DokumentasjonEtterspurt.Kilde.DOKUMENTASJON_ETTERSPURT,
             )
         }
-    krav.addAll(nyeKrav)
+    dokumentasjonEtterspurt.addAll(nyeKrav)
 
     if (hendelse.dokumenter.isNotEmpty() && forvaltningsbrevRef != null) {
         hendelser.add(
-            DokumentasjonEtterspurt(
+            DokumentasjonEtterspurtHendelse(
                 tidspunkt = tidspunkt,
                 harDokumenter = true,
                 forvaltningsbrevRef = forvaltningsbrevRef,

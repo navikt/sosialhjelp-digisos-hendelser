@@ -6,6 +6,7 @@ kotlinx-coroutines = "1.10.1"
 sosialhjelp-filformat-kmp = "1.2026.09.01-15.04-1cfcdceea438"
 mockk = "1.14.9"
 assertj = "3.27.3"
+js-joda-timezone = "2.23.0"
 
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }

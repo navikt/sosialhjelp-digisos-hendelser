@@ -1,7 +1,13 @@
-package no.nav.sosialhjelp.digisos.hendelser.domain
+package no.nav.sosialhjelp.digisos.hendelser.domain.hendelse
 
 import kotlinx.datetime.Instant
-import kotlinx.datetime.LocalDate
+import no.nav.sosialhjelp.digisos.hendelser.domain.DokumentRef
+import no.nav.sosialhjelp.digisos.hendelser.domain.NavEnhet
+import no.nav.sosialhjelp.digisos.hendelser.domain.SaksStatus
+import no.nav.sosialhjelp.digisos.hendelser.domain.Soknad
+import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatus
+import no.nav.sosialhjelp.digisos.hendelser.domain.UtbetalingsStatus
+import no.nav.sosialhjelp.digisos.hendelser.domain.UtfallVedtak
 
 /**
  * Sealed hierarchy of typed domain events emitted during the fold of a søknad's hendelse stream.
@@ -101,9 +107,3 @@ data class SoknadKravLagtTil(
 data class OppgaverTrukket(
     override val tidspunkt: Instant,
 ) : SoknadHendelse
-
-/**
- * Returns a stable gruppeId string for grouping krav by frist.
- * Preserved from the existing sha256(frist.toString()) pattern both apps share.
- */
-fun gruppeIdForFrist(frist: LocalDate): String = sha256(frist.toString())

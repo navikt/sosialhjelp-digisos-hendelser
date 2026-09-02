@@ -1,6 +1,6 @@
 package no.nav.sosialhjelp.digisos.hendelser.event
 
-import no.nav.sosialhjelp.digisos.hendelser.domain.FoldResult
+import no.nav.sosialhjelp.digisos.hendelser.fold.FoldResult
 import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatus
 import no.nav.sosialhjelp.digisos.hendelser.fold.NoopVedleggService
 import no.nav.sosialhjelp.digisos.hendelser.fold.SoknadMetadata
@@ -53,7 +53,7 @@ class FoldTest {
 
         // Result hendelser (excluding SoknadSendt) should be MOTTATT, UNDER_BEHANDLING, FERDIGBEHANDLET
         val statusHendelser = result.hendelser
-            .filterIsInstance<no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatusEndret>()
+            .filterIsInstance<no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.SoknadsStatusEndret>()
         assertEquals(SoknadsStatus.MOTTATT, statusHendelser[0].status)
         assertEquals(SoknadsStatus.UNDER_BEHANDLING, statusHendelser[1].status)
         assertEquals(SoknadsStatus.FERDIGBEHANDLET, statusHendelser[2].status)

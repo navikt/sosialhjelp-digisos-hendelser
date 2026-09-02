@@ -2,7 +2,7 @@ package no.nav.sosialhjelp.digisos.hendelser.event
 
 import no.nav.sosialhjelp.digisos.hendelser.domain.DokumentRef
 import no.nav.sosialhjelp.digisos.hendelser.domain.UtfallVedtak
-import no.nav.sosialhjelp.digisos.hendelser.domain.VedtakFattet
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.VedtakFattet
 import no.nav.sosialhjelp.filformat.digisos.soker.DokumentlagerFilreferanse
 import no.nav.sosialhjelp.filformat.digisos.soker.SvarUtFilreferanse
 import no.nav.sosialhjelp.filformat.digisos.soker.VedtakFattet.Utfall
@@ -10,8 +10,6 @@ import no.nav.sosialhjelp.filformat.digisos.soker.VedtakFattet.Vedtaksfil
 import no.nav.sosialhjelp.filformat.digisos.soker.VedtakFattet as FilformatVedtakFattet
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class VedtakFattetTest {
@@ -21,10 +19,10 @@ class VedtakFattetTest {
         acc.apply(vedtakFattet(REFERANSE_1, Utfall.INNVILGET))
 
         assertEquals(1, acc.vedtak.size)
-        val ref = acc.vedtak[0].referanse
+        val ref = acc.vedtak[0].vedtak.dokument
         assertTrue(ref is DokumentRef.Dokumentlager)
-        assertEquals(DOKUMENTLAGERID_1, (ref as DokumentRef.Dokumentlager).id)
-        assertEquals(UtfallVedtak.INNVILGET, acc.vedtak[0].utfall)
+        assertEquals(DOKUMENTLAGERID_1, ref.id)
+        assertEquals(UtfallVedtak.INNVILGET, acc.vedtak[0].vedtak.utfall)
     }
 
     @Test
@@ -39,9 +37,9 @@ class VedtakFattetTest {
             ),
         )
 
-        val ref = acc.vedtak[0].referanse
+        val ref = acc.vedtak[0].vedtak.dokument
         assertTrue(ref is DokumentRef.SvarUt)
-        assertEquals(SVARUTID, (ref as DokumentRef.SvarUt).id)
+        assertEquals(SVARUTID, ref.id)
         assertEquals(SVARUT_NR, ref.nr)
     }
 
@@ -78,5 +76,11 @@ class VedtakFattetTest {
         assertEquals(1, acc.vedtak.size)
         // Empty saksreferanse: getSak returns null, no sak created
         assertTrue(acc.saker.isEmpty())
+
+        // At the FoldResult boundary, this vedtak is exposed as an explicit orphan rather than
+        // a synthesized "default" sak (unlike innsyn-api / modia-api historically did).
+        val soknad = acc.toFoldResult().soknad
+        assertTrue(soknad.saker.isEmpty())
+        assertEquals(1, soknad.vedtakUtenSak.size)
     }
 }

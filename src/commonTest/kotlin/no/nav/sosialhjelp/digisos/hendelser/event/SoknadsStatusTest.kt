@@ -1,7 +1,7 @@
 package no.nav.sosialhjelp.digisos.hendelser.event
 
 import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatus
-import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatusEndret
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.SoknadsStatusEndret
 import no.nav.sosialhjelp.filformat.digisos.soker.SoknadsStatus as FilformatSoknadsStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,6 +1,6 @@
 package no.nav.sosialhjelp.digisos.hendelser.event
 
-import no.nav.sosialhjelp.digisos.hendelser.domain.TildeltNavKontor
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.TildeltNavKontor
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

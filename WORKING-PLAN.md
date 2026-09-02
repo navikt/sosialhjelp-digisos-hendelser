@@ -167,3 +167,46 @@ The two source repos' models differ in ways the shared model must absorb:
 7. Switch input model to filformat-kmp, add the JS target, wire up adminpanel
 
 Steps 1–6 deliver most of the value and carry no KMP/JS risk.
+
+## Model restructure — `Soknad` is now nested, not flat
+
+The initial port of `domain/Soknad.kt` kept the flat shape from innsyn/modia (parallel
+lists linked by `saksReferanse: String?`). It has since been restructured: `Vedtak`,
+`Utbetaling`, `Dokumentasjonkrav` and `Vilkar` now nest under `Sak`. Migration notes for
+step 6 (innsyn-api, modia-api):
+
+1. **The `"default"` sak is gone.** Both consumers historically materialised a
+   `VedtakFattet` with a blank saksreferanse as a sak with referanse `"default"` and a
+   hardcoded title (innsyn: `DEFAULT_SAK_TITTEL` i18n key; modia: `"Økonomisk
+   sosialhjelp"`). The library exposes these as `Soknad.vedtakUtenSak` instead — read
+   that list and build the placeholder sak with your own title constant.
+2. **`Sak.tittel` / `Sak.saksStatus` may be null**, on a sak synthesized from a
+   `Dokumentasjonkrav`/`Vilkar`/`Vedtak` referencing a saksreferanse with no prior
+   `SaksStatusEndret`. Both consumers already have the fallback (`sak.tittel ?:
+   DEFAULT_SAK_TITTEL`, `sak.saksStatus ?: UNDER_BEHANDLING`) — no change needed there.
+3. **Krav sits on `Sak`, not on `Utbetaling`.** `Sak.dokumentasjonkrav` /
+   `Sak.vilkar` keep `utbetalingsReferanser: List<String>` rather than being duplicated
+   under each `Utbetaling` they apply to. Rebuild the old per-utbetaling view with:
+   ```kotlin
+   sak.utbetalinger.associateWith { u ->
+       sak.dokumentasjonkrav.filter { u.referanse in it.utbetalingsReferanser }
+   }
+   ```
+   This incidentally fixes a bug present in both consumers, where a `Vilkar` on a
+   sak-orphaned `Utbetaling` is silently dropped because the lookup only scans
+   sak-nested utbetalinger (`Dokumentasjonkrav` already compensates for this; `Vilkar`
+   does not).
+4. **`Krav.DokumentasjonEtterspurt` and `Krav.SoknadVedleggKreves` merged** into one
+   `DokumentasjonEtterspurt` type at søknadsnivå, discriminated by `kilde: Kilde`.
+5. **`gruppeId` is non-null** — `sha256(frist.toString())`, or `sha256("null")` when
+   `frist` is absent. Matches innsyn's pinned `oppgaveId`/`dokumentasjonkravId` hashes.
+6. **Vedtak no longer cross-bind to a `"default"` sak.** Both consumers' current
+   `VedtakFattet` handler binds *every* subsequent vedtak to the first `"default"` sak
+   once one exists (`it.referanse == hendelse.saksreferanse || it.referanse ==
+   "default"`), regardless of the vedtak's own saksreferanse. This is a bug, not
+   behaviour to preserve — the library does not reproduce it.
+7. **`Vedtak.referanse` renamed to `Vedtak.dokument`** (`DokumentRef`, unchanged type)
+   — it identifies a document, not a lookup key.
+8. **`Forvaltningsbrev` and `ForelopigSvar`** (byte-identical shapes) merged into one
+   `DatertDokument`.
+

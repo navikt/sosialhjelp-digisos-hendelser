@@ -3,32 +3,11 @@ package no.nav.sosialhjelp.digisos.hendelser.domain
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 
-// ---------------------------------------------------------------------------
-// Top-level fold output
-// ---------------------------------------------------------------------------
-
-/**
- * Combined output of the fold.
- * Both the folded aggregate state and the ordered typed event list are included
- * so consumers can use either or both without reimplementing the fold themselves.
- */
-data class FoldResult(
-    val soknad: Soknad,
-    /** Ordered (ascending by tidspunkt) typed domain events emitted during the fold. */
-    val hendelser: List<SoknadHendelse>,
-)
-
-// ---------------------------------------------------------------------------
-// Folded aggregate
-// ---------------------------------------------------------------------------
-
 /**
  * Immutable folded state of a søknad.
  *
- * [status] is the raw folded value from the hendelse stream.
- * [avledetStatus] is after the "aktive saker" override: a FERDIGBEHANDLET søknad with active
- * saker (no vedtak and saksStatus == UNDER_BEHANDLING) is overridden to UNDER_BEHANDLING.
- * Consumers may use either; both are exposed so neither is lost.
+ * [status] is the raw folded value from the hendelse stream. [avledetStatus] applies the
+ * "aktive saker" override on top of it.
  */
 data class Soknad(
     val fiksDigisosId: String,
@@ -39,31 +18,41 @@ data class Soknad(
     val tidspunktSendt: Instant?,
     val sistEndret: Instant,
     val status: SoknadsStatus,
-    val avledetStatus: SoknadsStatus,
     val mottaker: NavEnhet?,
     /** Full tildeling history — each entry is one TildeltNavKontor hendelse. */
     val navKontorHistorikk: List<NavKontorTildeling>,
     val saker: List<Sak>,
     /**
-     * Flat list of vedtak. [Vedtak.saksReferanse] is nullable — Fiks may emit a VedtakFattet
-     * without a matching sak. Consumers group by saksReferanse if needed.
+     * Vedtak from a VedtakFattet with a blank saksreferanse.
      */
-    val vedtak: List<Vedtak>,
-    val utbetalinger: List<Utbetaling>,
+    val vedtakUtenSak: List<Vedtak>,
+    /** Utbetalinger whose saksreferanse is blank or matches no known sak. */
+    val utbetalingerUtenSak: List<Utbetaling>,
     /**
-     * Unified list of all krav: DokumentasjonEtterspurt, SoknadVedleggKreves,
-     * Dokumentasjonkrav and Vilkar. [Krav.kilde] discriminates.
+     * Dokumentasjon etterspurt på søknadsnivå. From JsonDokumentasjonEtterspurt or the original
+     * søknad's VedleggKreves fallback.
      */
-    val krav: List<Krav>,
-    val forvaltningsbrev: List<Forvaltningsbrev>,
-    val forelopigSvar: ForelopigSvar?,
+    val dokumentasjonEtterspurt: List<DokumentasjonEtterspurt>,
+    val forvaltningsbrev: List<DatertDokument>,
+    val forelopigSvar: DatertDokument?,
     /** Reference to the original søknad document in Fiks Dokumentlager. */
     val originalSoknad: DokumentRef?,
-)
-
-// ---------------------------------------------------------------------------
-// Sub-types
-// ---------------------------------------------------------------------------
+) {
+    /**
+     * "aktive saker" override: a FERDIGBEHANDLET søknad with a sak that has no vedtak and is
+     * still UNDER_BEHANDLING is reported as UNDER_BEHANDLING, so oppgaver from that sak stay
+     * visible.
+     */
+    val avledetStatus: SoknadsStatus
+        get() =
+            if (status == SoknadsStatus.FERDIGBEHANDLET &&
+                saker.any { it.vedtak.isEmpty() && it.saksStatus == SaksStatus.UNDER_BEHANDLING }
+            ) {
+                SoknadsStatus.UNDER_BEHANDLING
+            } else {
+                status
+            }
+}
 
 data class Fagsystem(
     val systemnavn: String?,
@@ -72,7 +61,7 @@ data class Fagsystem(
 
 /**
  * A Nav enhet identified by its enhetsnummer.
- * [navn] is resolved by the consumer via NORG post-fold — the fold never calls NORG.
+ * [navn] is resolved by the consumer via NORG.
  */
 data class NavEnhet(
     val enhetsnummer: String,
@@ -88,16 +77,20 @@ data class NavKontorTildeling(
 
 data class Sak(
     val referanse: String,
+    /** null when the sak was synthesized from a hendelse referencing an unknown sak */
     val saksStatus: SaksStatus?,
+    /** null for a synthesized sak */
     val tittel: String?,
+    val vedtak: List<Vedtak>,
+    val utbetalinger: List<Utbetaling>,
+    val dokumentasjonkrav: List<Dokumentasjonkrav>,
+    val vilkar: List<Vilkar>,
 )
 
 data class Vedtak(
-    val referanse: DokumentRef,
+    val dokument: DokumentRef,
     val utfall: UtfallVedtak?,
     val dato: LocalDate?,
-    /** Nullable: Fiks allows a vedtak without a matching sak. */
-    val saksReferanse: String?,
 )
 
 data class Utbetaling(
@@ -116,108 +109,75 @@ data class Utbetaling(
     val fom: LocalDate?,
     val tom: LocalDate?,
     val mottaker: String?,
-    /** true when payment goes to someone other than søker (annenMottaker == null also counts as true). */
+    /** true when payment goes to someone other than søker */
     val annenMottaker: Boolean,
-    /** Nulled when [annenMottaker] is true — fail-safe to avoid exposing third-party account numbers. */
+    /** Null when [annenMottaker] is true */
     val kontonummer: String?,
     val utbetalingsmetode: String?,
-    val saksReferanse: String?,
-    val datoHendelse: Instant,
+    val sistEndret: Instant,
 ) {
-    /** Double representation — use for JS consumers or quick comparisons. */
     val belopAsDouble: Double get() = belopString.toDoubleOrNull() ?: 0.0
 }
 
-/** Unified "krav" concept covering all four sources. */
-sealed interface Krav {
-    val referanse: String
-    val tittel: String?
-    val beskrivelse: String?
-    val status: Oppgavestatus
-    val frist: LocalDate?
-    val saksReferanse: String?
-    val utbetalingsReferanser: List<String>
-
-    /**
-     * sha256 of the frist date string — used as a grouping key by consumers,
-     * preserved from the existing implementation to avoid breaking downstream grouping logic.
-     */
-    val gruppeId: String?
-
-    /** From a JsonDokumentasjonEtterspurt hendelse. */
-    data class DokumentasjonEtterspurt(
-        override val referanse: String,
-        override val tittel: String?,
-        override val beskrivelse: String?,
-        override val status: Oppgavestatus,
-        override val frist: LocalDate?,
-        override val saksReferanse: String? = null,
-        override val utbetalingsReferanser: List<String> = emptyList(),
-        override val gruppeId: String?,
-        val tidspunktForKrav: Instant,
-        val forvaltningsbrevRef: DokumentRef?,
-    ) : Krav
-
-    /** From the original søknad's VedleggKreves entries (fallback when no DokumentasjonEtterspurt exists). */
-    data class SoknadVedleggKreves(
-        override val referanse: String,
-        override val tittel: String?,
-        override val beskrivelse: String?,
-        override val status: Oppgavestatus,
-        override val frist: LocalDate? = null,
-        override val saksReferanse: String? = null,
-        override val utbetalingsReferanser: List<String> = emptyList(),
-        override val gruppeId: String?,
-        val tidspunktForKrav: Instant,
-    ) : Krav
-
-    /** From a JsonDokumentasjonkrav hendelse. */
-    data class Dokumentasjonkrav(
-        override val referanse: String,
-        override val tittel: String?,
-        override val beskrivelse: String?,
-        override val status: Oppgavestatus,
-        override val frist: LocalDate?,
-        override val saksReferanse: String?,
-        override val utbetalingsReferanser: List<String>,
-        override val gruppeId: String?,
-        val datoLagtTil: Instant,
-    ) : Krav
-
-    /** From a JsonVilkar hendelse. */
-    data class Vilkar(
-        override val referanse: String,
-        override val tittel: String?,
-        override val beskrivelse: String?,
-        override val status: Oppgavestatus,
-        override val frist: LocalDate? = null,
-        override val saksReferanse: String?,
-        override val utbetalingsReferanser: List<String>,
-        override val gruppeId: String? = null,
-        val datoLagtTil: Instant,
-        val datoSistEndret: Instant,
-    ) : Krav
+/** From a JsonDokumentasjonEtterspurt hendelse, or the original søknad's VedleggKreves entries. */
+data class DokumentasjonEtterspurt(
+    val referanse: String,
+    val tittel: String?,
+    val beskrivelse: String?,
+    val status: Oppgavestatus,
+    /** null for [Kilde.SOKNAD_VEDLEGG_KREVES]. */
+    val frist: LocalDate?,
+    /** [gruppeIdForFrist] of [frist]. Stable grouping key */
+    val gruppeId: String,
+    val tidspunktForKrav: Instant,
+    /** null for [Kilde.SOKNAD_VEDLEGG_KREVES]. */
+    val forvaltningsbrevRef: DokumentRef?,
+    val kilde: Kilde,
+) {
+    enum class Kilde { DOKUMENTASJON_ETTERSPURT, SOKNAD_VEDLEGG_KREVES }
 }
 
-/** Opaque reference to a document in Fiks — consumers build URLs from their own config. */
+/** From a JsonDokumentasjonkrav hendelse. Always belongs to a [Sak]. */
+data class Dokumentasjonkrav(
+    val referanse: String,
+    val tittel: String?,
+    val beskrivelse: String?,
+    val status: Oppgavestatus,
+    val frist: LocalDate?,
+    val gruppeId: String,
+    /** References into the parent [Sak.utbetalinger]. Many-to-many */
+    val utbetalingsReferanser: List<String>,
+    val datoLagtTil: Instant,
+)
+
+/** From a JsonVilkar hendelse. Always belongs to a [Sak]. */
+data class Vilkar(
+    val referanse: String,
+    val tittel: String?,
+    val beskrivelse: String?,
+    val status: Oppgavestatus,
+    /** References into the parent [Sak.utbetalinger]. Many-to-many */
+    val utbetalingsReferanser: List<String>,
+    val datoLagtTil: Instant,
+    val datoSistEndret: Instant,
+)
+
+/**
+ * Stable grouping key for krav sharing a frist. sha256 of the frist, or of the literal string
+ * "null" when absent.
+ */
+fun gruppeIdForFrist(frist: LocalDate?): String = sha256(frist.toString())
+
+/** Opaque reference to a document in Fiks */
 sealed interface DokumentRef {
     data class Dokumentlager(val id: String) : DokumentRef
     data class SvarUt(val id: String, val nr: Int) : DokumentRef
 }
 
-data class Forvaltningsbrev(
+data class DatertDokument(
     val dokumentRef: DokumentRef,
     val tidspunkt: Instant,
 )
-
-data class ForelopigSvar(
-    val dokumentRef: DokumentRef,
-    val tidspunkt: Instant,
-)
-
-// ---------------------------------------------------------------------------
-// Enums
-// ---------------------------------------------------------------------------
 
 enum class SoknadsStatus { SENDT, MOTTATT, UNDER_BEHANDLING, FERDIGBEHANDLET, BEHANDLES_IKKE }
 

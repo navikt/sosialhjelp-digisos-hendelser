@@ -3,7 +3,7 @@ package no.nav.sosialhjelp.digisos.hendelser.event
 import no.nav.sosialhjelp.digisos.hendelser.domain.DokumentRef
 import no.nav.sosialhjelp.digisos.hendelser.domain.UtfallVedtak
 import no.nav.sosialhjelp.digisos.hendelser.domain.Vedtak
-import no.nav.sosialhjelp.digisos.hendelser.domain.VedtakFattet
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.VedtakFattet
 import no.nav.sosialhjelp.digisos.hendelser.domain.toInstant
 import no.nav.sosialhjelp.digisos.hendelser.domain.toLocalDateOslo
 import no.nav.sosialhjelp.filformat.digisos.soker.DokumentlagerFilreferanse
@@ -32,10 +32,13 @@ internal fun FoldAccumulator.apply(hendelse: FilformatVedtakFattet) {
     val tidspunkt = hendelse.hendelsestidspunkt.toInstant()
 
     vedtak.add(
-        Vedtak(
-            referanse = dokumentRef,
-            utfall = utfall,
-            dato = tidspunkt.toLocalDateOslo(),
+        FlatVedtak(
+            vedtak =
+                Vedtak(
+                    dokument = dokumentRef,
+                    utfall = utfall,
+                    dato = tidspunkt.toLocalDateOslo(),
+                ),
             saksReferanse = saksReferanse,
         ),
     )

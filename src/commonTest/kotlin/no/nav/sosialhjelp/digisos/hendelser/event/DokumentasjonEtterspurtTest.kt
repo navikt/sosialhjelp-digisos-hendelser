@@ -1,10 +1,10 @@
 package no.nav.sosialhjelp.digisos.hendelser.event
 
 import no.nav.sosialhjelp.digisos.hendelser.domain.DokumentasjonEtterspurt
-import no.nav.sosialhjelp.digisos.hendelser.domain.Krav
 import no.nav.sosialhjelp.digisos.hendelser.domain.Oppgavestatus
-import no.nav.sosialhjelp.digisos.hendelser.domain.OppgaverTrukket
 import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatus
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.OppgaverTrukket
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.DokumentasjonEtterspurt as DokumentasjonEtterspurtHendelse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -15,7 +15,7 @@ class DokumentasjonEtterspurtTest {
         val acc = testAccumulator()
         acc.apply(dokumentasjonEtterspurt(dokumenttype = DOKUMENTTYPE, forvaltningsbrevId = DOKUMENTLAGERID_1))
 
-        val oppgaver = acc.krav.filterIsInstance<Krav.DokumentasjonEtterspurt>()
+        val oppgaver = acc.dokumentasjonEtterspurt.filter { it.kilde == DokumentasjonEtterspurt.Kilde.DOKUMENTASJON_ETTERSPURT }
         assertEquals(1, oppgaver.size)
         assertEquals(DOKUMENTTYPE, oppgaver[0].tittel)
         assertEquals(Oppgavestatus.RELEVANT, oppgaver[0].status)
@@ -27,7 +27,7 @@ class DokumentasjonEtterspurtTest {
         acc.apply(dokumentasjonEtterspurt(dokumenttype = "type1"))
         acc.apply(dokumentasjonEtterspurt(dokumenttype = "type2", tidspunkt = tidspunkt_2))
 
-        val oppgaver = acc.krav.filterIsInstance<Krav.DokumentasjonEtterspurt>()
+        val oppgaver = acc.dokumentasjonEtterspurt.filter { it.kilde == DokumentasjonEtterspurt.Kilde.DOKUMENTASJON_ETTERSPURT }
         assertEquals(1, oppgaver.size)
         assertEquals("type2", oppgaver[0].tittel)
     }
@@ -75,6 +75,6 @@ class DokumentasjonEtterspurtTest {
         val acc = testAccumulator()
         acc.apply(dokumentasjonEtterspurt(forvaltningsbrevId = DOKUMENTLAGERID_1))
 
-        assertTrue(acc.hendelser.any { it is DokumentasjonEtterspurt })
+        assertTrue(acc.hendelser.any { it is DokumentasjonEtterspurtHendelse })
     }
 }

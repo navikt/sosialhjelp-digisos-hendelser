@@ -2,7 +2,7 @@ package no.nav.sosialhjelp.digisos.hendelser.event
 
 import no.nav.sosialhjelp.digisos.hendelser.domain.NavEnhet
 import no.nav.sosialhjelp.digisos.hendelser.domain.NavKontorTildeling
-import no.nav.sosialhjelp.digisos.hendelser.domain.TildeltNavKontor
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.TildeltNavKontor
 import no.nav.sosialhjelp.digisos.hendelser.domain.toInstant
 import no.nav.sosialhjelp.filformat.digisos.soker.TildeltNavKontor as FilformatTildeltNavKontor
 

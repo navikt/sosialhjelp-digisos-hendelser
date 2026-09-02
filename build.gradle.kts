@@ -37,6 +37,14 @@ kotlin {
                 implementation(libs.assertj.core)
             }
         }
+        val jsMain by getting {
+            dependencies {
+                // Required for kotlinx-datetime's TimeZone.of("Europe/Oslo") to resolve on
+                // Kotlin/JS + Node: @js-joda/core (used internally by kotlinx-datetime on JS)
+                // ships with no IANA timezone database by default.
+                implementation(npm("@js-joda/timezone", libs.versions.js.joda.timezone.get()))
+            }
+        }
     }
 }
 

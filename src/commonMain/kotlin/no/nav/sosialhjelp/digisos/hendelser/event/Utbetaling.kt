@@ -1,11 +1,12 @@
 package no.nav.sosialhjelp.digisos.hendelser.event
 
 import no.nav.sosialhjelp.digisos.hendelser.domain.Utbetaling
-import no.nav.sosialhjelp.digisos.hendelser.domain.UtbetalingEndret
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.UtbetalingEndret
 import no.nav.sosialhjelp.digisos.hendelser.domain.UtbetalingsStatus
 import no.nav.sosialhjelp.digisos.hendelser.domain.toInstant
 import no.nav.sosialhjelp.digisos.hendelser.domain.toLocalDate
 import no.nav.sosialhjelp.digisos.hendelser.domain.toLocalDateOslo
+import no.nav.sosialhjelp.digisos.hendelser.domain.toBelopString
 import no.nav.sosialhjelp.filformat.digisos.soker.Utbetaling as FilformatUtbetaling
 
 internal fun FoldAccumulator.apply(hendelse: FilformatUtbetaling) {
@@ -26,7 +27,7 @@ internal fun FoldAccumulator.apply(hendelse: FilformatUtbetaling) {
         Utbetaling(
             referanse = hendelse.utbetalingsreferanse,
             status = status,
-            belopString = (hendelse.belop ?: 0.0).toString(),
+            belopString = (hendelse.belop ?: 0.0).toBelopString(),
             beskrivelse = hendelse.beskrivelse,
             forfallsDato = hendelse.forfallsdato?.toLocalDate(),
             utbetalingsDato = hendelse.utbetalingsdato?.toLocalDate(),
@@ -42,11 +43,10 @@ internal fun FoldAccumulator.apply(hendelse: FilformatUtbetaling) {
             annenMottaker = annenMottaker,
             kontonummer = hendelse.kontonummer.takeUnless { annenMottaker },
             utbetalingsmetode = hendelse.utbetalingsmetode,
-            saksReferanse = hendelse.saksreferanse,
-            datoHendelse = tidspunkt,
+            sistEndret = tidspunkt,
         )
 
-    upsertUtbetaling(utbetaling)
+    upsertUtbetaling(FlatUtbetaling(utbetaling = utbetaling, saksReferanse = hendelse.saksreferanse))
 
     hendelser.add(
         UtbetalingEndret(

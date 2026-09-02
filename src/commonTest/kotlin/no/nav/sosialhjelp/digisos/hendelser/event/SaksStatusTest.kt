@@ -1,12 +1,10 @@
 package no.nav.sosialhjelp.digisos.hendelser.event
 
 import no.nav.sosialhjelp.digisos.hendelser.domain.SaksStatus
-import no.nav.sosialhjelp.digisos.hendelser.domain.SaksStatusEndret
-import no.nav.sosialhjelp.digisos.hendelser.domain.SoknadsStatus
+import no.nav.sosialhjelp.digisos.hendelser.domain.hendelse.SaksStatusEndret
 import no.nav.sosialhjelp.filformat.digisos.soker.SaksStatus as FilformatSaksStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SaksStatusTest {
